@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' file:; connect-src 'none'; form-action 'none'">
+<title>Cover Page Maker</title>
+<style>
+  :root {
+    --bg:#f6f7f9; --panel:#ffffff; --ink:#14161a; --muted:#646b76;
+    --line:#e3e6ea; --line-strong:#cdd2d9; --accent:#2f6df6; --accent-ink:#fff;
+    --ok:#12805c; --warn:#b4540a;
+    --radius:12px; --shadow:0 1px 2px rgba(16,20,28,.06), 0 8px 24px rgba(16,20,28,.06);
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#0f1115; --panel:#171a20; --ink:#e9ecf1; --muted:#99a2b0;
+      --line:#262b33; --line-strong:#39404a; --accent:#4d82ff; --accent-ink:#fff;
+      --ok:#3fd0a0; --warn:#f0a35e;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  header { max-width:1200px; margin:0 auto; padding:24px 16px 0; }
+  header a { color:var(--muted); text-decoration:none; font-size:14px; }
+  h1 { margin:6px 0 2px; font-size:26px; letter-spacing:-.01em; }
+  .sub { margin:0; color:var(--muted); }
+  .privacy { margin:12px 0 0; padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:var(--panel); color:var(--muted); font-size:13px; }
+  main { max-width:1200px; margin:0 auto; padding:16px; display:grid; gap:16px; grid-template-columns:minmax(300px,420px) 1fr; align-items:start; }
+  @media (max-width:820px) { main { grid-template-columns:minmax(0,1fr); } }
+  main > *, fieldset { min-width:0; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px; }
+  fieldset { border:0; margin:0 0 14px; padding:0; }
+  legend { font-weight:600; margin-bottom:6px; padding:0; }
+  label { display:block; font-size:13px; color:var(--muted); margin:8px 0 2px; }
+  input[type=text], input[type=date], textarea {
+    resize:vertical;
+    width:100%; padding:8px 10px; font:inherit; color:var(--ink); background:var(--bg);
+    border:1px solid var(--line-strong); border-radius:8px;
+  }
+  input:focus-visible, button:focus-visible, summary:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .row2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .seg { display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--line-strong); border-radius:8px; overflow:hidden; }
+  .seg button { border:0; border-radius:0; background:transparent; color:var(--ink); padding:9px; font:inherit; cursor:pointer; }
+  .seg button[aria-pressed=true] { background:var(--accent); color:var(--accent-ink); }
+  button.btn { font:inherit; padding:9px 14px; border-radius:8px; border:1px solid var(--line-strong); background:var(--panel); color:var(--ink); cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:600; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .member { display:grid; grid-template-columns:1fr 1fr 1fr 32px; gap:6px; margin-bottom:6px; }
+  .member button { padding:0; }
+  .logo-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .logo-row img { max-height:40px; max-width:80px; border:1px solid var(--line); border-radius:6px; }
+  .stage { display:flex; flex-direction:column; gap:12px; }
+  .sheet-wrap { width:100%; overflow:hidden; border-radius:8px; background:var(--line); padding:0; }
+  .confirm { display:flex; align-items:center; gap:8px; font-size:14px; color:var(--ink); margin:0; }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .status { font-size:13px; min-height:1.2em; color:var(--muted); }
+  .status.warn { color:var(--warn); } .status.ok { color:var(--ok); }
+  dialog { border:1px solid var(--line); border-radius:var(--radius); background:var(--panel); color:var(--ink); padding:12px; max-width:96vw; }
+  dialog::backdrop { background:rgba(0,0,0,.55); }
+
+  /* The A4 sheet. Everything is in mm/pt so it matches the exports; scaled with transform to fit. */
+  .sheet { width:210mm; height:297mm; background:#fff; color:#000; position:relative; overflow:hidden;
+    font-family:"Times New Roman", Times, serif; font-weight:bold; font-size:12pt; line-height:1.2; transform-origin:top left; }
+  .sheet .flow { position:absolute; left:20mm; right:20mm; top:20mm; }
+  .sheet .flow { overflow-wrap:anywhere; }
+  .sheet .kv .v { min-width:0; }
+  .sheet .c { text-align:center; }
+  .sheet img.logo { display:block; margin:0 auto; }
+  .sheet .kv { display:flex; }
+  .sheet .kv .k { flex:0 0 52mm; }
+  .sheet .kv .v { flex:1; text-align:justify; }
+</style>
+</head>
+<body>
+<header>
+  <a href="../index.html">← All apps</a>
+  <h1>Cover Page Maker</h1>
+  <p class="sub">Fill in the details, check the A4 preview, then download as PDF or Word.</p>
+  <p class="privacy">🔒 Nothing is uploaded or saved. Everything stays in this browser tab and is discarded when you close or reload the page.</p>
+</header>
+
+<main>
+  <section class="panel" aria-label="Details">
+    <fieldset>
+      <legend>Cover type</legend>
+      <div class="seg" role="group" aria-label="Cover type">
+        <button type="button" id="modeOne" aria-pressed="true">One person</button>
+        <button type="button" id="modeGroup" aria-pressed="false">Group</button>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Header</legend>
+      <label for="logoFile">Logo (optional)</label>
+      <div class="logo-row">
+        <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp,image/gif">
+        <img id="logoThumb" alt="" hidden>
+        <button type="button" class="btn" id="logoClear" hidden>Remove</button>
+      </div>
+      <label for="faculty">Faculty</label>
+      <input type="text" id="faculty" autocomplete="off">
+      <label for="department">Department</label>
+      <input type="text" id="department" autocomplete="off">
+    </fieldset>
+
+    <fieldset id="onePane">
+      <legend>Student</legend>
+      <label for="surname">Surname</label>
+      <input type="text" id="surname" autocomplete="off">
+      <label for="name">Name</label>
+      <input type="text" id="name" autocomplete="off">
+      <label for="regNo">Reg number</label>
+      <input type="text" id="regNo" autocomplete="off">
+    </fieldset>
+
+    <fieldset id="groupPane" hidden>
+      <legend>Group</legend>
+      <label for="groupName">Group name</label>
+      <input type="text" id="groupName" autocomplete="off">
+      <label>Members (surname · name · reg number)</label>
+      <div id="members"></div>
+      <button type="button" class="btn" id="addMember">+ Add member</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>Course</legend>
+      <label for="programme">Programme</label>
+      <input type="text" id="programme" autocomplete="off">
+      <label for="entry">Mode of entry</label>
+      <input type="text" id="entry" autocomplete="off">
+      <label for="lecturer">Lecturer</label>
+      <input type="text" id="lecturer" autocomplete="off">
+      <label for="module">Module title</label>
+      <input type="text" id="module" autocomplete="off">
+      <label for="level">Level</label>
+      <input type="text" id="level" autocomplete="off">
+    </fieldset>
+
+    <fieldset>
+      <legend>Assignment</legend>
+      <label for="question">Assignment question</label>
+      <textarea id="question" rows="4"></textarea>
+    </fieldset>
+
+    <button type="button" class="btn" id="clearAll">Clear all</button>
+  </section>
+
+  <section class="panel stage" aria-label="Preview">
+    <div class="sheet-wrap" id="wrap"><div class="sheet" id="sheet"></div></div>
+    <div class="status" id="status" role="status"></div>
+    <label class="confirm"><input type="checkbox" id="confirm"> I have checked the preview and the structure is correct.</label>
+    <div class="actions">
+      <button type="button" class="btn" id="fullBtn">Full-size preview</button>
+      <button type="button" class="btn primary" id="pdfBtn" disabled>Download PDF</button>
+      <button type="button" class="btn primary" id="docxBtn" disabled>Download Word (.docx)</button>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <div class="sheet-wrap" id="dlgWrap"><div class="sheet" id="dlgSheet"></div></div>
+  <p style="text-align:right;margin:8px 0 0"><button type="button" class="btn" id="dlgClose">Close</button></p>
+</dialog>
+
+<script src="jspdf.umd.min.js"></script>
+<script src="docx.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
