@@ -22,8 +22,10 @@
   body {
     margin:0; background:var(--bg); color:var(--ink);
     font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height:100vh; min-height:100dvh;
+    display:flex; flex-direction:column; justify-content:center;
   }
-  main { max-width:880px; margin:0 auto; padding:48px 16px; }
+  main { width:100%; max-width:880px; margin:0 auto; padding:48px 16px; }
   h1 { margin:0 0 4px; font-size:28px; letter-spacing:-.01em; }
   .sub { margin:0 0 32px; color:var(--muted); }
   .grid { display:grid; gap:16px; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); }
