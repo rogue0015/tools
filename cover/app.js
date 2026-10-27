@@ -80,6 +80,12 @@
 
     const flow = $("sheet").querySelector(".flow");
     const overflow = flow.offsetTop + flow.offsetHeight > (PAGE_H - 15) * PX_PER_MM;
+    // Equal space above and below; never closer to the top than the margin.
+    const lastB = lastModel.blocks[lastModel.blocks.length - 1];
+    const heightMm = flow.offsetHeight / PX_PER_MM - (lastB ? lastB.after || 0 : 0); // trailing gap is not content
+    const topMm = Math.max(MARGIN, (PAGE_H - heightMm) / 2);
+    flow.style.top = topMm + "mm";
+    if ($("dlg").open) $("dlgSheet").querySelector(".flow").style.top = topMm + "mm";
     const empty = !lastModel.blocks.length;
     setStatus(overflow ? "Too much content for one A4 page. Shorten text or remove members." : empty ? "Fill in some details to see the preview." : "", overflow ? "warn" : "");
     blocked = overflow;
@@ -173,7 +179,7 @@
     const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
     doc.setFont("times", "bold"); doc.setFontSize(FONT_PT);
     const base = FONT_PT * (25.4 / 72) * 0.85; // first-line baseline offset
-    let y = MARGIN;
+    let y = MARGIN, draw = false;
     // splitTextToSize never breaks inside a word, so chop any word wider than the column first.
     const lines = (t, w) => doc.splitTextToSize(pdfSafe(t).split(" ").map(word => {
       if (doc.getTextWidth(word) <= w) return word;
@@ -184,22 +190,30 @@
       }
       return parts.concat(cur).join(" ");
     }).join(" "), w);
-    for (const b of lastModel.blocks) {
-      if (b.k === "logo") { doc.addImage(b.src, "PNG", (PAGE_W - b.w) / 2, y, b.w, b.h); y += b.h + b.after; }
-      else if (b.k === "gap") y += b.mm;
-      else if (b.k === "center" || b.k === "left") {
-        const ls = lines(b.text, CONTENT_W);
-        ls.forEach((ln, i) => b.k === "center"
-          ? doc.text(ln, PAGE_W / 2, y + base + i * LINE_MM, { align: "center" })
-          : doc.text(ln, MARGIN, y + base + i * LINE_MM));
-        y += ls.length * LINE_MM + b.after;
-      } else if (b.k === "kv") {
-        const ls = lines(b.value, CONTENT_W - LABEL_W);
-        doc.text(b.label, MARGIN, y + base);
-        ls.forEach((ln, i) => doc.text(ln, MARGIN + LABEL_W, y + base + i * LINE_MM));
-        y += ls.length * LINE_MM + b.after;
+    const text = (...a) => { if (draw) doc.text(...a); };
+    const layout = () => {
+      for (const b of lastModel.blocks) {
+        if (b.k === "logo") { if (draw) doc.addImage(b.src, "PNG", (PAGE_W - b.w) / 2, y, b.w, b.h); y += b.h + b.after; }
+        else if (b.k === "gap") y += b.mm;
+        else if (b.k === "center" || b.k === "left") {
+          const ls = lines(b.text, CONTENT_W);
+          ls.forEach((ln, i) => b.k === "center"
+            ? text(ln, PAGE_W / 2, y + base + i * LINE_MM, { align: "center" })
+            : text(ln, MARGIN, y + base + i * LINE_MM));
+          y += ls.length * LINE_MM + b.after;
+        } else if (b.k === "kv") {
+          const ls = lines(b.value, CONTENT_W - LABEL_W);
+          text(b.label, MARGIN, y + base);
+          ls.forEach((ln, i) => text(ln, MARGIN + LABEL_W, y + base + i * LINE_MM));
+          y += ls.length * LINE_MM + b.after;
+        }
       }
-    }
+    };
+    layout();                                   // measuring pass
+    const last = lastModel.blocks[lastModel.blocks.length - 1];
+    const height = y - MARGIN - (last ? last.after || 0 : 0); // trailing gap is not content
+    y = Math.max(MARGIN, (PAGE_H - height) / 2); draw = true;
+    layout();
     doc.save(fileName("pdf"));
   }
 
@@ -232,7 +246,7 @@
     const doc = new D.Document({
       title: "Cover page",
       sections: [{
-        properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: m, bottom: m, left: m, right: m } } },
+        properties: { verticalAlign: D.VerticalAlign.CENTER, page: { size: { width: 11906, height: 16838 }, margin: { top: m, bottom: m, left: m, right: m } } },
         children: kids.length ? kids : [new D.Paragraph({ children: [] })],
       }],
     });
