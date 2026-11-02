@@ -50,7 +50,7 @@
   // Units: u = 1% of card height. Origin is the trim corner; bleed (if any) lies outside 0..W, 0..H.
   function kit(ctx, W, H, b) {
     const u = H / 100;
-    const g = { ctx, W, H, u, cut: false };
+    const g = { ctx, W, H, u, cut: false, links: [] };
 
     // Any edge touching the card edge is pushed out into the bleed.
     g.ext = (x, y, w, h) => {
@@ -86,12 +86,14 @@
     };
 
     // Vertical stack of items. With o.h the stack is centred in [y, y+h]. Returns {top, bottom}.
-    const hOf = it => it.k === "t" ? it.size * (it.lh || 1.3) + (it.gap || 0) : it.k === "r" ? it.thick : it.h;
+    const hOf = it => it.k === "t" ? it.size * (it.lh || 1.3) + (it.gap || 0) : it.k === "r" ? it.thick : it.k === "soc" ? it._h : it.h;
     const leftOf = (x, w, align) => align === "center" ? x - w / 2 : align === "right" ? x - w : x;
     g.stack = (items, x, y, o = {}) => {
       items = items.filter(it => it && (it.k !== "t" || it.s));
       while (items.length && items[0].k === "s") items.shift();
       while (items.length && items[items.length - 1].k === "s") items.pop();
+      const socOpts = it => ({ align: o.align, color: it.color, iconColor: it.iconColor || it.color, font: FONTS[it.font || "clean"], weight: 500, lines: 2 });
+      items.forEach(it => { if (it.k === "soc") it._h = Social.row(ctx, it.items, 0, 0, it.maxW || o.maxW, it.size, { ...socOpts(it), dry: true }).h; });
       const total = items.reduce((a, it) => a + hOf(it), 0);
       let cy = o.h != null ? y + (o.h - total) / 2 : y;
       const top = cy;
@@ -107,6 +109,10 @@
           ctx.fillStyle = it.color; ctx.fillRect(leftOf(x, it.w, o.align), cy, it.w, it.thick);
         } else if (it.k === "b") {
           it.draw(leftOf(x, it.w, o.align), cy);
+        } else if (it.k === "soc") {
+          const r = Social.row(ctx, it.items, x, cy, it.maxW || o.maxW, it.size, socOpts(it));
+          if (r.small) g.cut = true;
+          g.links.push(...r.links);
         }
         cy += hOf(it);
       }
@@ -190,6 +196,7 @@
         ctx.fillRect(x0, y0, Math.round(x + (c + q + 1) * s) - x0, Math.round(y + (r + q + 1) * s) - y0);
       }
       if (k) mark(x + (q + a + 0.5) * s, y + (q + a + 0.5) * s, (k - 1) * s); // half-module white border
+      if (m.url) g.links.push({ x, y, w: size, h: size, url: m.url });
     };
     return g;
   }
@@ -199,8 +206,14 @@
   const R = (w, thick, color) => ({ k: "r", w, thick, color });
   const S = h => ({ k: "s", h });
   const B = (w, h, draw) => ({ k: "b", w, h, draw });
-  const contacts = (d, o, keys = ["phone", "email", "website", "address"]) =>
-    keys.filter(k => k && d[k]).map(k => T(d[k], { ...o, icon: o.icons ? k : null }));
+  // Social media row (optional). d.socFront / d.socBack say which side it goes on.
+  const SOC = (items, o) => ({ k: "soc", items, size: o.size, color: o.color, iconColor: o.iconColor, font: o.font });
+  const contacts = (d, o, keys = ["phone", "email", "website", "address"]) => {
+    const out = keys.filter(k => k && d[k]).map(k => T(d[k], { ...o, icon: o.icons ? k : null }));
+    if (d.socFront) out.push(SOC(d.soc, o));
+    return out;
+  };
+  const backSoc = (d, size, color, iconColor) => d.socBack ? [S(size * 0.6), SOC(d.soc, { size, color, iconColor })] : [];
 
   // ---------- Templates ----------
   // tags: photo / logo / text (gallery filters). mode: the template's default look, "light" or "dark".
@@ -447,6 +460,7 @@
           S(3 * u), R(12 * u, 0.35 * u, A), S(3.5 * u),
           T(join(d.phone, d.email), { size: 4.4 * u, color: c.ink }),
           T(join(d.website, d.address), { size: 4.4 * u, color: c.ink }),
+          d.socFront && SOC(d.soc, { size: 4.2 * u, color: c.ink, iconColor: A }),
         ], W / 2, 0, { h: d.company ? 82 * u : H, align: "center", maxW: W - 12 * u });
         g.text(d.company, W / 2, 85 * u, { size: 3.8 * u, color: c.company, upper: true, track: 0.3, align: "center", maxW: W - 12 * u });
       },
@@ -500,6 +514,7 @@
       S(5 * u), ...tagItems(g, d, 5.4 * u, ink || p.ink, mw),
       S(3.5 * u), R(10 * u, 0.4 * u, p.acc), S(3.5 * u),
       T(d.website, { size: 4.4 * u, weight: 600, color: ink || p.head, track: 0.06 }),
+      ...backSoc(d, 4.2 * u, ink || p.ink, ink || p.head),
     ], W / 2, 0, { h: H, align: "center", maxW: mw });
     if (qr) g.qr(qr, W - q - 6 * u, H - q - 6 * u, q, p.dark, qr.mark);
   }
@@ -520,6 +535,7 @@
           S(4 * u), ...tagItems(g, d, 5 * u, p.ink, cw),
           S(3 * u), R(10 * u, 0.4 * u, p.acc), S(3 * u),
           T(d.website, { size: 4.4 * u, weight: 600, color: p.head }),
+          ...backSoc(d, 4 * u, p.ink, p.head),
           T("Scan to visit", { size: 3.4 * u, font: "mono", color: p.ink, upper: true, track: 0.15 }),
         ], x0, 0, { h: H, maxW: cw });
       },
@@ -553,6 +569,7 @@
           ...tagItems(g, d, 5 * u, p.ink, cw),
           S(3 * u), R(10 * u, 0.4 * u, p.acc === "#FFFFFF" ? p.head : p.acc), S(3 * u),
           T(d.website, { size: 4.4 * u, weight: 600, color: p.head }),
+          ...backSoc(d, 4 * u, p.ink, p.head),
           qr && S(5 * u), qr && B(qs, qs, (x, y) => g.qr(qr, x, y, qs, p.dark, qr.mark)),
         ].filter(Boolean), pw + (W - pw) / 2, 0, { h: H, align: "center", maxW: cw });
       },
@@ -574,6 +591,7 @@
   const state = {
     tpl: null, filter: "all", size: "eu", accents: {}, modes: {}, photo: null, logo: null, backImg: null,
     zoom: 1, fx: 0.5, fy: 0.3, bleed: false, back: true, backId: "centre", qr: true,
+    soc: false, socWhere: "back", socVals: {},
   };
   const accentOf = t => state.accents[t.id] || t.accent;
   const modeOf = t => state.modes[t.id] || t.mode;
@@ -581,7 +599,11 @@
 
   const clean = s => s.trim().replace(/\s+/g, " ");
   function userData() {
-    const d = {}; FIELDS.forEach(f => { d[f] = clean($(f).value); }); return d;
+    const d = {}; FIELDS.forEach(f => { d[f] = clean($(f).value); });
+    d.soc = state.soc ? Social.items(state.socVals) : [];
+    const on = d.soc.length > 0, back = state.back && state.socWhere === "back";
+    d.socFront = on && !back; d.socBack = on && back;
+    return d;
   }
   const withInitials = d => {
     const w = d.name.split(" ").filter(Boolean);
@@ -611,8 +633,9 @@
 
   // QR for the website with the logo in the middle (or an initials badge when there is no logo).
   function qrWithMark(g, d, P, p) {
-    const m = qrFor(urlOf(d.website));
-    if (!m) return null;
+    const url = urlOf(d.website), m0 = qrFor(url);
+    if (!m0) return null;
+    const m = { ...m0, url };
     const mark = P.logo ? (x, y, w) => g.img(P.logo, x, y, w, w, { fit: "contain" })
       : d.initials ? (x, y, w) => {
         const ctx = g.ctx;
@@ -753,6 +776,8 @@
     else if (state.back && !state.logo) notes.push("No logo yet: the back shows your company name instead.");
     if (state.back && state.qr && !d.website) notes.push("Add a website to put a QR code on the back.");
     if (state.back && state.qr && d.website && !qrFor(urlOf(d.website))) notes.push("The website is too long for a QR code.");
+    if (state.soc && !d.soc.length) notes.push("Add a social media handle, or untick social media icons.");
+    if (d.socFront && state.socWhere === "back") notes.push("The back side is off, so your social media icons are on the front.");
     if (cut) notes.push("Some text is too long and was cut short (…). Shorten it.");
     const ready = !!d.name;
     if (!ready) notes.unshift("Enter your name to enable downloads.");
@@ -796,7 +821,8 @@
   // ---------- Exports (600 DPI) ----------
   function exportCanvas(side, bleedMm) {
     const c = document.createElement("canvas"), d = withInitials(userData()), P = images();
-    drawCard(c, PX_PER_MM_EXPORT, bleedMm, side === "back" ? paintBack(backDesign(), state.tpl, d, P) : paintFront(state.tpl, d, P));
+    const g = drawCard(c, PX_PER_MM_EXPORT, bleedMm, side === "back" ? paintBack(backDesign(), state.tpl, d, P) : paintFront(state.tpl, d, P));
+    c.links = g.links; // in pixels from the trim corner
     return c;
   }
   function fileName(ext, extra) {
@@ -837,12 +863,19 @@
     const w = sz.w + 2 * b, h = sz.h + 2 * b;
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: "mm", format: [w, h], orientation: "landscape" });
-    doc.addImage(exportCanvas("front", b).toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, w, h);
-    if (state.back) {
-      doc.addPage([w, h], "landscape");
-      doc.addImage(exportCanvas("back", b).toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, w, h);
-    }
+    const side = s => {
+      const c = exportCanvas(s, b);
+      doc.addImage(c.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, w, h);
+      addLinks(doc, c.links, b, b);
+    };
+    side("front");
+    if (state.back) { doc.addPage([w, h], "landscape"); side("back"); }
     return doc;
+  }
+  // Clickable areas for the QR code and social icons. ox/oy: where the card's trim corner sits on the page (mm).
+  function addLinks(doc, links, ox, oy) {
+    const mm = v => v / PX_PER_MM_EXPORT;
+    (links || []).forEach(l => doc.link(ox + mm(l.x), oy + mm(l.y), mm(l.w), mm(l.h), { url: l.url }));
   }
   // A4, 2 × 5 cards with cut marks. Page 2 holds the backs, columns mirrored so they line up
   // when printed double-sided (flip on long edge).
@@ -858,9 +891,12 @@
       for (let r = 0; r <= rows; r++) { const y = gy + r * sz.h; doc.line(gx - m - len, y, gx - m, y); doc.line(gx + cols * sz.w + m, y, gx + cols * sz.w + m + len, y); }
     };
     const page = (side, mirror) => {
-      const data = exportCanvas(side, 0).toDataURL("image/jpeg", 0.95);
-      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++)
-        doc.addImage(data, "JPEG", gx + (mirror ? cols - 1 - c : c) * sz.w, gy + r * sz.h, sz.w, sz.h, side);
+      const cv = exportCanvas(side, 0), data = cv.toDataURL("image/jpeg", 0.95);
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+        const x = gx + (mirror ? cols - 1 - c : c) * sz.w, y = gy + r * sz.h;
+        doc.addImage(data, "JPEG", x, y, sz.w, sz.h, side);
+        addLinks(doc, cv.links, x, y);
+      }
       marks();
     };
     page("front", false);
@@ -897,6 +933,15 @@
   $("bleed").onchange = () => { state.bleed = $("bleed").checked; render(); };
   $("backOn").onchange = () => { state.back = $("backOn").checked; syncFields(); render(); };
   $("qrOn").onchange = () => { state.qr = $("qrOn").checked; render(); };
+  Social.form($("socFields"), schedule, state.socVals);
+  $("socOn").onchange = () => { state.soc = $("socOn").checked; $("socOpts").hidden = !state.soc; render(); };
+  document.querySelectorAll("#socWhere button").forEach(b => {
+    b.onclick = () => {
+      state.socWhere = b.dataset.w;
+      document.querySelectorAll("#socWhere button").forEach(x => x.setAttribute("aria-pressed", x === b));
+      render();
+    };
+  });
   $("pngBtn").onclick = () => run(() => exportPNG("front"), state.back ? "Front PNG" : "PNG");
   $("pngBackBtn").onclick = () => run(() => exportPNG("back"), "Back PNG");
   $("pdfBtn").onclick = () => run(exportPDF, "PDF");
@@ -916,6 +961,8 @@
   });
   $("clearAll").onclick = () => {
     FIELDS.forEach(id => { $(id).value = ""; });
+    Object.keys(state.socVals).forEach(k => { state.socVals[k] = ""; });
+    document.querySelectorAll("#socFields input").forEach(i => { i.value = ""; });
     state.zoom = 1; state.fx = 0.5; state.fy = 0.3; $("zoom").value = 1; $("fx").value = 0.5; $("fy").value = 0.3;
     state.accents = {}; state.modes = {}; if (state.tpl) { $("accent").value = state.tpl.accent; syncMode(); }
     clearImage("logo"); clearImage("photo"); clearImage("backImg");

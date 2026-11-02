@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#08060B">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' file:; connect-src 'none'; form-action 'none'">
+<title>Flyer Maker</title>
+<link rel="stylesheet" href="../theme.css">
+<style>
+  :root{ --ok:var(--acid); --warn:#FFB000; }
+  header{ max-width:1200px; margin:0 auto; padding:16px var(--gutter) 4px; }
+  .privacy{
+    margin:16px 0 0; padding:10px 14px; border:1px solid var(--line); border-left:2px solid var(--acid);
+    background:var(--panel-glass); color:var(--paper-dim); font-family:var(--mono); font-size:12px; letter-spacing:.02em;
+  }
+  main{ max-width:1200px; margin:0 auto; padding:16px var(--gutter) calc(40px + env(safe-area-inset-bottom)); }
+  .panel{ padding:18px 16px; min-width:0; }
+  @media (min-width:820px){ header{ padding:28px 24px 4px; } main{ padding:16px 24px 48px; } .panel{ padding:20px; } }
+
+  .steps{ display:flex; gap:8px; margin:0 0 16px; font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; }
+  .steps span{ flex:1; padding:8px 10px; border:1px solid var(--line); color:var(--paper-dim); }
+  .steps span.on{ border-color:var(--acid); color:var(--acid); }
+
+  /* step 1: gallery */
+  .chips{ display:flex; flex-wrap:wrap; gap:6px; margin:0 0 16px; }
+  .chips button{
+    min-height:var(--tap); padding:8px 14px; border:1px solid var(--line-strong); border-radius:0; cursor:pointer; touch-action:manipulation;
+    background:transparent; color:var(--paper-dim); font-family:var(--mono); font-size:11.5px; letter-spacing:.08em; text-transform:uppercase;
+  }
+  .chips button[aria-pressed=true]{ background:var(--acid); border-color:var(--acid); color:var(--void); font-weight:600; }
+  .count{ font-family:var(--mono); font-size:11.5px; color:var(--paper-dim); margin:-6px 0 14px; }
+  .tpls{ display:grid; gap:10px; grid-template-columns:1fr 1fr; }
+  @media (min-width:640px){ .tpls{ gap:16px; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); } }
+  .tpl{
+    display:flex; flex-direction:column; gap:8px; padding:8px; text-align:left; cursor:pointer; touch-action:manipulation;
+    background:var(--field); border:1px solid var(--line); border-radius:0; color:var(--paper);
+    transition:border-color .2s, transform .2s;
+  }
+  .tpl canvas{ width:100%; height:auto; display:block; box-shadow:0 6px 18px rgba(0,0,0,.45); }
+  .tpl .nm{ font-family:var(--mono); font-size:11.5px; letter-spacing:.06em; text-transform:uppercase; }
+  .tpl .tg{ font-family:var(--mono); font-size:10.5px; color:var(--paper-dim); }
+  .tpl[aria-current=true]{ border-color:var(--acid); }
+  .tpl[aria-current=true] .nm{ color:var(--acid); }
+  @media (hover:hover){ .tpl:hover{ border-color:var(--acid); transform:translateY(-2px); } }
+
+  /* step 2: text boxes + preview */
+  .work{ display:grid; gap:16px; grid-template-columns:minmax(0,1fr); align-items:start; }
+  @media (min-width:820px){ .work{ gap:18px; grid-template-columns:minmax(300px,420px) 1fr; } .stage-panel{ position:sticky; top:16px; } }
+  .chosen{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px; padding-bottom:14px; border-bottom:1px solid var(--line); }
+  .chosen b{ font-family:var(--mono); font-weight:500; color:var(--acid); letter-spacing:.06em; text-transform:uppercase; font-size:13px; }
+  .chosen small{ display:block; font-family:var(--mono); font-size:11px; color:var(--paper-dim); }
+  .hint{ font-size:12.5px; color:var(--paper-dim); margin:6px 0 0; }
+
+  .fld{ padding:10px 0 12px; border-bottom:1px solid var(--line); }
+  .fld:last-child{ border-bottom:0; }
+  .fhead{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
+  .fhead label, .fhead .lbl{ margin:0; font-family:var(--mono); font-size:11.5px; color:var(--paper); letter-spacing:.04em; }
+  .badge{ flex:0 0 auto; font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; padding:2px 7px; border:1px solid var(--line); color:var(--paper-dim); }
+  .fld[data-st=filler] .badge, .fld[data-st=ph] .badge{ border-color:var(--warn); color:var(--warn); }
+  .fld[data-st=cut] .badge{ border-color:var(--magenta); color:var(--magenta); }
+  .fld[data-st=ok] .badge{ border-color:var(--acid); color:var(--acid); }
+  .fld[data-st=filler] input[type=text], .fld[data-st=filler] textarea,
+  .fld[data-st=ph] input[type=text], .fld[data-st=ph] textarea{ border-color:rgba(255,176,0,.55); }
+  .fld.flash{ animation:flash 1s ease-out; }
+  @keyframes flash{ 0%{ background:rgba(212,255,63,.18); } 100%{ background:transparent; } }
+  .fld textarea{ min-height:72px; resize:vertical; }
+  .extras-h{ margin:22px 0 0; padding-top:14px; border-top:1px solid var(--line-strong); font-family:var(--mono); font-size:11px; font-weight:500; letter-spacing:.12em; text-transform:uppercase; color:var(--sigblue); }
+  .sublbl, .row2 label{ display:block; margin:8px 0 5px; font-family:var(--mono); font-size:11.5px; color:var(--paper-dim); }
+  .row2{ display:grid; grid-template-columns:1fr; gap:0 10px; }
+  @media (min-width:480px){ .row2{ grid-template-columns:1fr 1fr; } }
+  .img-row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .img-row canvas{ width:44px; height:44px; border:1px solid var(--line); object-fit:cover; }
+  .sliders{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 10px; margin-top:4px; }
+  .sliders label{ display:block; margin:6px 0 0; font-size:10.5px; }
+  .check{ display:flex; align-items:center; gap:10px; min-height:var(--tap); cursor:pointer; font-family:var(--sans); font-size:14px; letter-spacing:0; color:var(--paper); margin:0; }
+  .check input{ flex:0 0 auto; }
+
+  .stage{ display:flex; flex-direction:column; gap:14px; }
+  .canvas-wrap{ padding:18px; background:repeating-linear-gradient(45deg, rgba(245,239,223,.03) 0 10px, transparent 10px 20px); border:1px solid var(--line); }
+  #preview{ width:100%; max-width:560px; margin:0 auto; height:auto; display:block; box-shadow:0 10px 30px rgba(0,0,0,.55); cursor:pointer; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
+  .fillbar{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:10px 12px; border:1px solid var(--line); font-family:var(--mono); font-size:12px; }
+  .fillbar.warn{ border-color:var(--warn); color:var(--warn); }
+  .fillbar.ok{ border-color:var(--acid); color:var(--acid); }
+  .fillbar .btn{ min-height:34px; padding:6px 12px; }
+  #bleed{ width:100%; margin-top:4px; }
+  .lbl2{ display:block; margin:0 0 5px; font-family:var(--mono); font-size:11.5px; color:var(--paper-dim); }
+  .actions{ display:grid; gap:8px; grid-template-columns:1fr; }
+  @media (min-width:560px){ .actions{ display:flex; flex-wrap:wrap; } }
+  .status{ font-family:var(--mono); font-size:12px; min-height:1.2em; color:var(--paper-dim); }
+  .status.warn{ color:var(--warn); } .status.ok{ color:var(--ok); }
+  #stagePanel{ scroll-margin-top:12px; }
+  .jump{
+    position:sticky; bottom:calc(12px + env(safe-area-inset-bottom)); z-index:5;
+    display:flex; align-items:center; justify-content:center; min-height:var(--tap); margin:18px 0 0;
+    background:var(--acid); color:var(--void); text-decoration:none;
+    font-family:var(--mono); font-size:12px; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+  }
+  @media (min-width:820px){ .jump{ display:none; } }
+
+  dialog{
+    width:min(480px, calc(100vw - 32px)); padding:20px; border:1px solid var(--warn); border-radius:0;
+    background:var(--panel-solid); color:var(--paper);
+  }
+  dialog::backdrop{ background:rgba(8,6,11,.75); }
+  dialog h2{ margin:0 0 8px; font-family:var(--mono); font-size:13px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--warn); }
+  dialog p{ margin:0 0 10px; color:var(--paper-dim); font-size:14px; }
+  dialog ul{ list-style:none; margin:0 0 16px; padding:0; max-height:40vh; overflow:auto; border-top:1px solid var(--line); }
+  dialog li{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); font-size:14px; }
+  dialog li small{ display:block; font-family:var(--mono); font-size:10.5px; color:var(--warn); text-transform:uppercase; letter-spacing:.08em; }
+  dialog li .btn{ min-height:34px; padding:6px 12px; }
+  [hidden]{ display:none !important; }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<header>
+  <div class="topbar">
+    <span class="brandmark"><span class="dotlive"></span> <span class="full">BRANDON.T.BANDE //&nbsp;</span>ROGUE0015</span>
+    <a class="back" href="../index.html">← ALL APPS</a>
+  </div>
+  <div class="tag">APP 04 / PRINT</div>
+  <h1>Flyer <span class="accent">Maker</span></h1>
+  <p class="sub">Pick a template, fill in its text boxes, and download a PNG, JPG or PDF. Boxes still showing template filler are flagged before you download.</p>
+  <p class="privacy">// Works offline. Nothing is uploaded or saved: your text and images stay in this tab and are gone when you close or reload it.</p>
+</header>
+
+<main>
+  <div class="steps" aria-hidden="true"><span id="s1tag" class="on">01 · Template</span><span id="s2tag">02 · Edit &amp; download</span></div>
+
+  <section class="panel" id="step1" aria-label="Choose a template">
+    <div class="chips" id="filters" role="group" aria-label="Filter templates"></div>
+    <p class="count" id="count" role="status"></p>
+    <div class="tpls" id="tpls"></div>
+  </section>
+
+  <div class="work" id="step2" hidden>
+    <section class="panel" aria-label="Text boxes">
+      <div class="chosen">
+        <div><small>Template</small><b id="tplName"></b></div>
+        <button type="button" class="btn" id="changeTpl">← Change</button>
+      </div>
+      <p class="hint">Each box has a fixed place on the flyer; type to change what it says. Tap a section on the preview to jump to its box. Leave a box empty to remove it.</p>
+      <div id="fields"></div>
+      <button type="button" class="btn" id="resetTpl" style="margin-top:14px">Start over</button>
+      <a class="jump" href="#stagePanel">&darr; Preview &amp; download</a>
+    </section>
+
+    <section class="panel stage stage-panel" id="stagePanel" aria-label="Preview and download">
+      <div class="canvas-wrap">
+        <canvas id="preview" role="img" aria-label="Flyer preview. Click a section to edit it." draggable="false"></canvas>
+      </div>
+      <div class="fillbar" id="fillbar" role="status"><span id="fillMsg"></span><button type="button" class="btn" id="nextFill">Next filler →</button></div>
+      <label class="check"><input type="checkbox" id="guides" checked> Outline filler on the preview (never in downloads)</label>
+      <div>
+        <label class="lbl2" for="res">Size</label>
+        <select id="res">
+          <option value="100">Small file · 827 × 1170 px (screens, messages)</option>
+          <option value="150" selected>Standard · A4 at 150 DPI (home printing)</option>
+          <option value="300">Print shop · A4 at 300 DPI (largest file)</option>
+        </select>
+      </div>
+      <div>
+        <label class="lbl2" for="bleed">Bleed · <span id="bleedVal">none</span></label>
+        <div class="seg" id="bleedPresets" role="group" aria-label="Bleed presets">
+          <button type="button" data-mm="0" aria-pressed="true">None</button>
+          <button type="button" data-mm="3" aria-pressed="false">3 mm</button>
+          <button type="button" data-mm="5" aria-pressed="false">5 mm</button>
+        </div>
+        <input type="range" id="bleed" min="0" max="10" step="0.5" value="0" aria-label="Bleed in millimetres">
+        <p class="hint">Runs the background past the page edge so no white shows after trimming. Everything outside the dashed pink line gets cut off. 3 mm is standard; ask your print shop.</p>
+        <label class="check"><input type="checkbox" id="marks"> Add crop marks</label>
+      </div>
+      <div class="status" id="status" role="status"></div>
+      <div class="actions">
+        <button type="button" class="btn primary" id="jpgBtn">JPG · smallest</button>
+        <button type="button" class="btn primary" id="pngBtn">PNG</button>
+        <button type="button" class="btn primary" id="pdfBtn">PDF · A4</button>
+      </div>
+    </section>
+  </div>
+</main>
+
+<dialog id="dlg" aria-labelledby="dlgTitle">
+  <h2 id="dlgTitle">Filler text left</h2>
+  <p id="dlgText"></p>
+  <ul id="dlgList"></ul>
+  <div class="actions">
+    <button type="button" class="btn primary" id="dlgFix">Go back and edit</button>
+    <button type="button" class="btn" id="dlgGo">Download anyway</button>
+  </div>
+</dialog>
+
+<script src="../social.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

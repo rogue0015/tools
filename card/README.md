@@ -19,7 +19,12 @@ step, no internet connection needed.
    The back uses your logo (or company name), a **tagline**, your **website**,
    a **QR code** that opens the website, and an optional **background image**
    (Full image and Split designs, tinted so text stays readable).
-4. **Download.**
+4. **Social media** (optional, off by default). Tick "Add social media icons", pick
+   **Back** or **Front**, and fill in only the platforms you use (Instagram, Facebook, X,
+   LinkedIn, TikTok, YouTube, WhatsApp). The same handle everywhere is written once after
+   the icons; different handles each get an icon and wrap onto two lines if needed. With the
+   back side off, they go on the front. In the PDFs, each icon and the QR code are clickable.
+5. **Download.**
    - **Front PNG** / **Back PNG** at 600 DPI (85 × 55 mm = 2008 × 1299 px), tagged as 600 DPI.
    - **PDF** at the exact card size: page 1 front, page 2 back.
    - **A4 sheet**: 10 cards with cut marks. With a back side, page 2 holds the backs
@@ -69,6 +74,7 @@ everything is gone.
 | `index.html` | The page: markup and styling. Open this one. |
 | `app.js` | Front templates, back designs, canvas drawing, preview, PNG/PDF export. |
 | `jspdf.umd.min.js` | [jsPDF](https://github.com/parallax/jsPDF) 2.5.1 (MIT). |
+| `../social.js` | Social media icons, profile links and the icon row (shared with the Flyer Maker). |
 | `qrcode.min.js` | QR encoding, [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) (MIT). Same file as the QR app. |
 
 Text is drawn with the site's bundled fonts plus Georgia/Arial (or the

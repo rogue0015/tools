@@ -193,6 +193,20 @@
       </fieldset>
 
       <fieldset>
+        <legend>Social media</legend>
+        <label class="check"><input type="checkbox" id="socOn"> Add social media icons</label>
+        <div id="socOpts" hidden>
+          <p class="lbl" id="socWhereLbl">Show on</p>
+          <div class="seg" id="socWhere" role="group" aria-labelledby="socWhereLbl">
+            <button type="button" data-w="back" aria-pressed="true">Back</button>
+            <button type="button" data-w="front" aria-pressed="false">Front</button>
+          </div>
+          <div class="row2" id="socFields"></div>
+          <p class="hint">Fill in only the ones you use. If every handle is the same, the icons share one handle. In the PDF, each icon opens the profile.</p>
+        </div>
+      </fieldset>
+
+      <fieldset>
         <legend>Back side</legend>
         <label class="check"><input type="checkbox" id="backOn" checked> Include a back side</label>
         <div id="backOpts">
@@ -262,6 +276,7 @@
 <script src="jspdf.umd.min.js"></script>
 <script src="qrcode.min.js"></script>
 <script src="../share.js"></script>
+<script src="../social.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
