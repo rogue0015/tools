@@ -12,8 +12,8 @@
   };
   const FIELDS = ["name", "title", "company", "phone", "email", "website", "address", "tagline"];
   const SAMPLE = {
-    name: "Alex Morgan", title: "Marketing Director", company: "Northwind & Co.", phone: "+1 555 0123",
-    email: "alex@northwind.co", website: "northwind.co", address: "14 Park Lane, Springfield",
+    name: "Brandon T. Bande", title: "Indie developer", company: "Rogue0015", phone: "07123456789",
+    email: "brandon@test.io", website: "rogue0015.github.io", address: "123 Gweru",
     tagline: "Ideas that move people.",
   };
   const FONTS = {
@@ -34,7 +34,17 @@
 
   // ---------- Colour helpers ----------
   const rgb = h => { h = h.replace("#", ""); return [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)); };
+  const lum = h => { const c = rgb(h).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const onColor = hex => { const [r, gr, b] = rgb(hex); return 0.299 * r + 0.587 * gr + 0.114 * b > 150 ? "#111111" : "#FFFFFF"; };
   const mix = (a, b, t) => "#" + rgb(a).map((v, i) => Math.round(v + (rgb(b)[i] - v) * t).toString(16).padStart(2, "0")).join("");
+
+  // The accent A, lightened (dark bg) or darkened (light bg) just enough to reach contrast `min` against bg.
+  const fit = (A, bg, min = 3) => {
+    const to = lum(bg) < 0.2 ? "#FFFFFF" : "#000000";
+    for (let t = 0; t <= 1; t += 0.05) { const c = t ? mix(A, to, t) : A; if (contrast(c, bg) >= min) return c; }
+    return to;
+  };
 
   // ---------- Drawing kit handed to each template ----------
   // Units: u = 1% of card height. Origin is the trim corner; bleed (if any) lies outside 0..W, 0..H.
@@ -193,64 +203,85 @@
     keys.filter(k => k && d[k]).map(k => T(d[k], { ...o, icon: o.icons ? k : null }));
 
   // ---------- Templates ----------
-  // tags: photo / logo / text and dark / light. Each draws with its accent colour A.
+  // tags: photo / logo / text (gallery filters). mode: the template's default look, "light" or "dark".
+  // pal[mode](A) gives the colours for that look; draw() only uses c.*, so each template works both ways.
+  // c.acc is the accent, adjusted so it stays readable on the background. c.back goes to the back side
+  // (bg: background, head: headings/brand, ink: body text, acc: accent, dark: QR module colour).
   const TEMPLATES = [
     {
-      id: "band", name: "Navy Band", tags: ["logo", "light"], accent: "#C9A55A", uses: { logo: true },
-      draw(g, d, P, A) {
-        const { W, H, u, ctx } = g, navy = "#1B2A4A";
-        g.rect(0, 0, W, H, "#FFFFFF");
-        g.rect(0, 0, W, 40 * u, navy);
+      id: "band", name: "Navy Band", tags: ["logo"], mode: "light", accent: "#C9A55A", uses: { logo: true },
+      pal: {
+        light: A => ({ bg: "#FFFFFF", band: "#1B2A4A", bandHead: A, name: "#1B2A4A", sub: "#4A5568", ink: "#2D3748", acc: A,
+          back: { bg: "#1B2A4A", head: A, ink: "#FFFFFF", acc: A, dark: "#1B2A4A" } }),
+        dark: A => ({ bg: "#1B2A4A", band: "#F4F1EA", bandHead: fit(A, "#F4F1EA"), name: "#FFFFFF", sub: "#CBD5E0", ink: "#E2E8F0", acc: A,
+          back: { bg: "#F4F1EA", head: "#1B2A4A", ink: "#2D3748", acc: fit(A, "#F4F1EA"), dark: "#1B2A4A" } }),
+      },
+      draw(g, d, P, A, c) {
+        const { W, H, u, ctx } = g;
+        g.rect(0, 0, W, H, c.bg);
+        g.rect(0, 0, W, 40 * u, c.band);
         g.rect(0, 40 * u, W, 1.4 * u, A);
         const head = d.company || d.name;
         const lh = head ? 15 * u : 26 * u, ly = head ? 5 * u : 7 * u;
         g.logo(P, W / 2 - 30 * u, ly, 60 * u, lh, () => {
           const r = lh * 0.46;
-          ctx.strokeStyle = A; ctx.lineWidth = 0.5 * u;
+          ctx.strokeStyle = c.bandHead; ctx.lineWidth = 0.5 * u;
           ctx.beginPath(); ctx.arc(W / 2, ly + lh / 2, r, 0, Math.PI * 2); ctx.stroke();
-          g.text(d.initials, W / 2, ly + lh / 2 - r * 0.55, { size: r * 0.85, font: "serif", weight: 700, color: A, align: "center", lh: 1 });
+          g.text(d.initials, W / 2, ly + lh / 2 - r * 0.55, { size: r * 0.85, font: "serif", weight: 700, color: c.bandHead, align: "center", lh: 1 });
         });
-        if (head) g.text(head, W / 2, 23 * u, { size: 7.5 * u, weight: 700, color: A, upper: true, track: 0.08, align: "center", maxW: W - 12 * u });
+        if (head) g.text(head, W / 2, 23 * u, { size: 7.5 * u, weight: 700, color: c.bandHead, upper: true, track: 0.08, align: "center", maxW: W - 12 * u });
         g.stack([
-          T(d.name, { size: 10.5 * u, weight: 700, font: "serif", color: navy }),
-          T(d.title, { size: 5.6 * u, color: "#4A5568" }),
+          T(d.name, { size: 10.5 * u, weight: 700, font: "serif", color: c.name }),
+          T(d.title, { size: 5.6 * u, color: c.sub }),
           S(2 * u),
-          ...contacts(d, { size: 5 * u, color: "#2D3748" }),
+          ...contacts(d, { size: 5 * u, color: c.ink }),
         ], W / 2, 41.4 * u, { h: 58.6 * u, align: "center", maxW: W - 12 * u });
       },
     },
     {
-      id: "counsel", name: "Counsel", tags: ["photo", "dark"], accent: "#C9A55A", uses: { photo: true },
-      draw(g, d, P, A) {
-        const { W, H, u, ctx } = g, bg = "#14213D";
-        g.rect(0, 0, W, H, bg);
+      id: "counsel", name: "Counsel", tags: ["photo"], mode: "dark", accent: "#C9A55A", uses: { photo: true },
+      pal: {
+        dark: A => ({ bg: "#14213D", ph: "#2A3A5E", name: A, sub: mix(A, "#FFFFFF", 0.3), company: "#FFFFFF", ink: "#E2E8F0", acc: A, strip: "#14213D",
+          back: { bg: "#14213D", head: A, ink: "#E2E8F0", acc: A, dark: "#14213D" } }),
+        light: A => ({ bg: "#F7F5F0", ph: "#E2DED3", name: "#14213D", sub: fit(A, "#F7F5F0", 4.5), company: "#14213D", ink: "#2D3748", acc: A, strip: onColor(A),
+          back: { bg: "#F7F5F0", head: "#14213D", ink: "#2D3748", acc: fit(A, "#F7F5F0"), dark: "#14213D" } }),
+      },
+      draw(g, d, P, A, c) {
+        const { W, H, u, ctx } = g;
+        g.rect(0, 0, W, H, c.bg);
         const strip = d.address || d.company || d.website, sh = strip ? 15 * u : 0;
         if (strip) {
           g.rect(0, H - sh, W, sh, A);
-          g.text(strip, W / 2, H - sh + (sh - 6.5 * u) / 2, { size: 5 * u, color: bg, align: "center", maxW: W - 8 * u, weight: 600 });
+          g.text(strip, W / 2, H - sh + (sh - 6.5 * u) / 2, { size: 5 * u, color: c.strip, align: "center", maxW: W - 8 * u, weight: 600 });
         }
         const top = 8 * u, ph = H - sh - 15 * u, pw = ph * 0.8, px = 0.045 * W;
         g.rect(px + pw * 0.12, 0, pw * 0.22, top - 1.5 * u, A);
-        g.photo(P, d, px, top, pw, ph, { ph: "#2A3A5E", ink: A });
+        g.photo(P, d, px, top, pw, ph, { ph: c.ph, ink: A });
         ctx.strokeStyle = A; ctx.lineWidth = 0.7 * u; ctx.strokeRect(px, top, pw, ph);
         const tx = px + pw + 5.5 * u, tw = W - tx - 5 * u;
         g.stack([
-          T(d.name, { size: 8.5 * u, weight: 700, color: A, upper: true, track: 0.03 }),
-          T(d.title, { size: 4.8 * u, color: mix(A, "#FFFFFF", 0.3), upper: true, track: 0.08 }),
+          T(d.name, { size: 8.5 * u, weight: 700, color: c.name, upper: true, track: 0.03 }),
+          T(d.title, { size: 4.8 * u, color: c.sub, upper: true, track: 0.08 }),
           S(1.5 * u), R(tw, 0.4 * u, A), S(2.5 * u),
-          strip !== d.company && T(d.company, { size: 5 * u, weight: 600, color: "#FFFFFF" }),
-          ...contacts(d, { size: 4.6 * u, color: "#E2E8F0" }, ["phone", "email", strip !== d.website && "website"]),
+          strip !== d.company && T(d.company, { size: 5 * u, weight: 600, color: c.company }),
+          ...contacts(d, { size: 4.6 * u, color: c.ink }, ["phone", "email", strip !== d.website && "website"]),
         ], tx, top, { h: ph, maxW: tw });
       },
     },
     {
-      id: "graphite", name: "Graphite", tags: ["logo", "dark"], accent: "#AEB6BF", uses: { logo: true },
-      draw(g, d, P, A) {
+      id: "graphite", name: "Graphite", tags: ["logo"], mode: "dark", accent: "#AEB6BF", uses: { logo: true },
+      pal: {
+        dark: A => ({ bg: "#2E3134", lines: "rgba(255,255,255,0.09)", name: "#ECEDEE", ink: "#D5D8DB", acc: fit(A, "#2E3134"),
+          back: { bg: "#2E3134", head: "#ECEDEE", ink: "#D5D8DB", acc: fit(A, "#2E3134"), dark: "#2E3134" } }),
+        light: A => ({ bg: "#F1F2F3", lines: "rgba(0,0,0,0.07)", name: "#2E3134", ink: "#474C52", acc: fit(A, "#F1F2F3"),
+          back: { bg: "#F1F2F3", head: "#2E3134", ink: "#474C52", acc: fit(A, "#F1F2F3"), dark: "#2E3134" } }),
+      },
+      draw(g, d, P, A, c) {
         const { W, H, u, ctx } = g;
-        g.rect(0, 0, W, H, "#2E3134");
+        g.rect(0, 0, W, H, c.bg);
         let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
         const pts = Array.from({ length: 14 }, () => [W * (0.45 + rnd() * 0.6), H * (-0.1 + rnd() * 1.2)]);
-        ctx.strokeStyle = "rgba(255,255,255,0.09)"; ctx.lineWidth = 0.35 * u; ctx.beginPath();
+        ctx.strokeStyle = c.lines; ctx.lineWidth = 0.35 * u; ctx.beginPath();
         pts.forEach((p, i) => { for (const j of [3, 5]) { ctx.moveTo(p[0], p[1]); ctx.lineTo(...pts[(i + j) % 14]); } });
         ctx.stroke();
         const cx = 0.79 * W, bw = 0.26 * W;
@@ -263,18 +294,24 @@
         });
         g.text(d.company, cx, 63 * u, { size: 4.4 * u, weight: 700, color: A, upper: true, track: 0.12, align: "center", maxW: 0.32 * W });
         g.stack([
-          T(d.name, { size: 8.5 * u, weight: 700, color: "#ECEDEE", upper: true, track: 0.03 }),
+          T(d.name, { size: 8.5 * u, weight: 700, color: c.name, upper: true, track: 0.03 }),
           T(d.title, { size: 4.6 * u, color: A, upper: true, track: 0.06 }),
           S(4 * u),
-          ...contacts(d, { size: 4.5 * u, color: "#D5D8DB", icons: true, iconColor: A }),
+          ...contacts(d, { size: 4.5 * u, color: c.ink, icons: true, iconColor: A }),
         ], 0.06 * W, 0, { h: H, maxW: 0.56 * W });
       },
     },
     {
-      id: "blueprint", name: "Blueprint", tags: ["logo", "light"], accent: "#1A1A1A", uses: { logo: true },
-      draw(g, d, P, A) {
+      id: "blueprint", name: "Blueprint", tags: ["logo"], mode: "light", accent: "#1A1A1A", uses: { logo: true },
+      pal: {
+        light: A => ({ bg: "#FFFFFF", name: "#111111", ink: "#333333", acc: fit(A, "#FFFFFF"),
+          back: { bg: "#FFFFFF", head: "#111111", ink: "#333333", acc: fit(A, "#FFFFFF"), dark: "#111111" } }),
+        dark: A => ({ bg: "#16181C", name: "#F2F2F2", ink: "#C9CDD3", acc: fit(A, "#16181C", 4.5),
+          back: { bg: "#16181C", head: "#F2F2F2", ink: "#C9CDD3", acc: fit(A, "#16181C"), dark: "#16181C" } }),
+      },
+      draw(g, d, P, A, c) {
         const { W, H, u, ctx } = g;
-        g.rect(0, 0, W, H, "#FFFFFF");
+        g.rect(0, 0, W, H, c.bg);
         const bx = 0.04 * W, by = 14 * u, bw = 0.4 * W, bh = 72 * u;
         g.logo(P, bx, by, bw, bh, () => {
           // abstract line-art building
@@ -283,40 +320,52 @@
             [45, 40, 80, 40], [80, 40, 80, 95], [52, 55, 72, 55], [52, 55, 52, 95], [72, 55, 72, 95], [80, 62, 95, 62], [95, 62, 95, 95],
             [45, 40, 60, 25], [60, 25, 60, 40], [5, 35, 20, 35], [5, 35, 5, 95], [62, 70, 68, 70]];
           ctx.strokeStyle = A; ctx.lineWidth = 0.45 * u; ctx.lineCap = "square"; ctx.beginPath();
-          L.forEach(([a, b2, c, e]) => { ctx.moveTo(ox + a * s, oy + b2 * s); ctx.lineTo(ox + c * s, oy + e * s); });
+          L.forEach(([a, b2, c2, e]) => { ctx.moveTo(ox + a * s, oy + b2 * s); ctx.lineTo(ox + c2 * s, oy + e * s); });
           ctx.stroke();
         });
         g.stack([
-          T(d.name, { size: 8 * u, weight: 700, color: "#111111", upper: true }),
+          T(d.name, { size: 8 * u, weight: 700, color: c.name, upper: true }),
           T(d.title, { size: 4.8 * u, color: A, upper: true, track: 0.1 }),
           S(4 * u),
-          T(d.company, { size: 5.4 * u, weight: 600, color: "#111111" }),
-          ...contacts(d, { size: 4.5 * u, color: "#333333" }),
+          T(d.company, { size: 5.4 * u, weight: 600, color: c.name }),
+          ...contacts(d, { size: 4.5 * u, color: c.ink }),
         ], 0.48 * W, 0, { h: H, maxW: 0.48 * W });
       },
     },
     {
-      id: "agent", name: "Agent", tags: ["photo", "light"], accent: "#8E9196", uses: { photo: true },
-      draw(g, d, P, A) {
+      id: "agent", name: "Agent", tags: ["photo"], mode: "light", accent: "#8E9196", uses: { photo: true },
+      pal: {
+        light: A => ({ bg: "#FFFFFF", ph: "#E5E7EB", phInk: "#9CA3AF", name: "#111111", sub: "#222222", company: "#444444", ink: "#222222", acc: A,
+          back: { bg: "#FFFFFF", head: "#111111", ink: "#222222", acc: fit(A, "#FFFFFF"), dark: "#111111" } }),
+        dark: A => ({ bg: "#141518", ph: "#2A2C31", phInk: "#5B5F66", name: "#F5F5F5", sub: "#E5E5E5", company: "#B8BCC2", ink: "#D9DBDF", acc: A,
+          back: { bg: "#141518", head: "#F5F5F5", ink: "#D9DBDF", acc: fit(A, "#141518"), dark: "#141518" } }),
+      },
+      draw(g, d, P, A, c) {
         const { W, H, u } = g, x0 = 0.63 * W;
-        g.rect(0, 0, W, H, "#FFFFFF");
-        g.photo(P, d, x0, 0, W - x0, H, { ext: true, ph: "#E5E7EB", ink: "#9CA3AF" });
+        g.rect(0, 0, W, H, c.bg);
+        g.photo(P, d, x0, 0, W - x0, H, { ext: true, ph: c.ph, ink: c.phInk });
         const st = g.stack([
-          T(d.name, { size: 10 * u, weight: 800, color: "#111111", upper: true }),
+          T(d.name, { size: 10 * u, weight: 800, color: c.name, upper: true }),
           S(2 * u),
-          T(d.title, { size: 5.4 * u, weight: 600, color: "#222222" }),
-          T(d.company, { size: 5 * u, color: "#444444" }),
+          T(d.title, { size: 5.4 * u, weight: 600, color: c.sub }),
+          T(d.company, { size: 5 * u, color: c.company }),
           S(3 * u),
-          ...contacts(d, { size: 4.6 * u, color: "#222222" }),
+          ...contacts(d, { size: 4.6 * u, color: c.ink }),
         ], 7 * u, 0, { h: H, maxW: x0 - 11 * u });
         if (d.name) g.rect(0, st.top, 2.4 * u, 13 * u, A);
       },
     },
     {
-      id: "monogram", name: "Monogram", tags: ["logo", "light"], accent: "#6C3BFF", uses: { logo: true },
-      draw(g, d, P, A) {
+      id: "monogram", name: "Monogram", tags: ["logo"], mode: "light", accent: "#6C3BFF", uses: { logo: true },
+      pal: {
+        light: A => ({ bg: "#FBFAF7", name: "#151515", sub: "#333333", company: "#222222", ink: "#333333", acc: A,
+          back: { bg: "#FBFAF7", head: "#151515", ink: "#333333", acc: fit(A, "#FBFAF7"), dark: "#151515" } }),
+        dark: A => ({ bg: "#121214", name: "#F7F5F0", sub: "#CFCBC4", company: "#E8E5DF", ink: "#CFCBC4", acc: fit(A, "#121214"),
+          back: { bg: "#121214", head: "#F7F5F0", ink: "#CFCBC4", acc: fit(A, "#121214"), dark: "#121214" } }),
+      },
+      draw(g, d, P, A, c) {
         const { W, H, u, ctx } = g;
-        g.rect(0, 0, W, H, "#FBFAF7");
+        g.rect(0, 0, W, H, c.bg);
         const bx = 0.06 * W, bw = 0.3 * W;
         g.logo(P, bx, 18 * u, bw, 64 * u, () => {
           if (!d.initials) return;
@@ -326,99 +375,108 @@
           g.text(d.initials, cx, 50 * u - sz * 0.65, { size: sz, font: "serif", weight: 700, color: grad, align: "center", lh: 1 });
         });
         g.stack([
-          T(d.name, { size: 9.5 * u, font: "serif", color: "#151515" }),
-          T(d.title, { size: 5.2 * u, color: "#333333" }),
+          T(d.name, { size: 9.5 * u, font: "serif", color: c.name }),
+          T(d.title, { size: 5.2 * u, color: c.sub }),
           S(4 * u),
-          T(d.company, { size: 4.8 * u, weight: 600, color: "#222222" }),
-          ...contacts(d, { size: 4.6 * u, color: "#333333" }),
+          T(d.company, { size: 4.8 * u, weight: 600, color: c.company }),
+          ...contacts(d, { size: 4.6 * u, color: c.ink }),
         ], 0.42 * W, 0, { h: H, maxW: 0.53 * W });
       },
     },
     {
-      id: "calm", name: "Calm", tags: ["photo", "light"], accent: "#2F6F86", uses: { photo: true },
-      draw(g, d, P, A) {
+      id: "calm", name: "Calm", tags: ["photo"], mode: "light", accent: "#2F6F86", uses: { photo: true },
+      pal: {
+        light: A => ({ bg: mix(A, "#FFFFFF", 0.9), panel: mix(A, "#FFFFFF", 0.72), ph: mix(A, "#FFFFFF", 0.5), name: mix(A, "#000000", 0.45), sub: A, ink: "#2B3A42", acc: A,
+          back: { bg: mix(A, "#FFFFFF", 0.72), head: mix(A, "#000000", 0.45), ink: "#2B3A42", acc: A, dark: mix(A, "#000000", 0.45) } }),
+        dark: A => ({ bg: mix(A, "#000000", 0.8), panel: mix(A, "#000000", 0.65), ph: mix(A, "#000000", 0.4), name: mix(A, "#FFFFFF", 0.85), sub: mix(A, "#FFFFFF", 0.5), ink: "#D5DEE2", acc: mix(A, "#FFFFFF", 0.3),
+          back: { bg: mix(A, "#000000", 0.65), head: mix(A, "#FFFFFF", 0.85), ink: "#D5DEE2", acc: mix(A, "#FFFFFF", 0.3), dark: mix(A, "#000000", 0.65) } }),
+      },
+      draw(g, d, P, A, c) {
         const { W, H, u } = g;
-        g.rect(0, 0, W, H, mix(A, "#FFFFFF", 0.9));
-        g.rect(0, 0, 0.4 * W, H, mix(A, "#FFFFFF", 0.72));
-        g.photo(P, d, 0.05 * W, 12 * u, 0.3 * W, 76 * u, { radius: 2 * u, ph: mix(A, "#FFFFFF", 0.5), ink: "#FFFFFF" });
-        const dark = mix(A, "#000000", 0.45);
+        g.rect(0, 0, W, H, c.bg);
+        g.rect(0, 0, 0.4 * W, H, c.panel);
+        g.photo(P, d, 0.05 * W, 12 * u, 0.3 * W, 76 * u, { radius: 2 * u, ph: c.ph, ink: "#FFFFFF" });
         g.stack([
-          T(d.name, { size: 7.8 * u, weight: 700, color: dark, upper: true }),
-          T(d.title, { size: 5 * u, color: A, upper: true, track: 0.06 }),
+          T(d.name, { size: 7.8 * u, weight: 700, color: c.name, upper: true }),
+          T(d.title, { size: 5 * u, color: c.sub, upper: true, track: 0.06 }),
           S(2.5 * u), R(0.18 * W, 0.4 * u, A), S(3 * u),
-          T(d.company, { size: 5 * u, weight: 700, color: dark }),
-          ...contacts(d, { size: 4.6 * u, color: "#2B3A42" }),
+          T(d.company, { size: 5 * u, weight: 700, color: c.name }),
+          ...contacts(d, { size: 4.6 * u, color: c.ink }),
         ], 0.45 * W, 0, { h: H, maxW: 0.5 * W });
       },
     },
     {
-      id: "portrait", name: "Portrait", tags: ["photo", "light"], accent: "#0F766E", uses: { photo: true },
-      draw(g, d, P, A) {
-        const { W, H, u, ctx } = g;
-        g.rect(0, 0, W, H, "#FFFFFF");
-        g.rect(0, 0, 0.36 * W, H, A);
+      id: "portrait", name: "Portrait", tags: ["photo"], mode: "light", accent: "#0F766E", uses: { photo: true },
+      pal: {
+        light: A => ({ bg: "#FFFFFF", side: A, name: "#111111", sub: A, ink: "#333333", acc: A,
+          back: { bg: A, head: "#FFFFFF", ink: mix(A, "#FFFFFF", 0.85), acc: "#FFFFFF", dark: mix(A, "#000000", 0.45) } }),
+        dark: A => ({ bg: "#15181A", side: A, name: "#F5F5F5", sub: fit(A, "#15181A", 4.5), ink: "#CBD2D6", acc: fit(A, "#15181A"),
+          back: { bg: "#15181A", head: "#F5F5F5", ink: "#CBD2D6", acc: fit(A, "#15181A"), dark: "#15181A" } }),
+      },
+      draw(g, d, P, A, c) {
+        const { W, H, u, ctx } = g, sideInk = onColor(c.side);
+        g.rect(0, 0, W, H, c.bg);
+        g.rect(0, 0, 0.36 * W, H, c.side);
         const cx = 0.18 * W, cy = d.company ? 42 * u : 50 * u, r = Math.min(0.13 * W, 25 * u);
-        ctx.fillStyle = "#FFFFFF"; ctx.beginPath(); ctx.arc(cx, cy, r + 1.2 * u, 0, Math.PI * 2); ctx.fill();
-        g.photo(P, d, cx - r, cy - r, 2 * r, 2 * r, { circle: true, ph: mix(A, "#FFFFFF", 0.75), ink: A });
-        g.text(d.company, cx, cy + r + 6 * u, { size: 4.2 * u, weight: 700, color: "#FFFFFF", upper: true, track: 0.12, align: "center", maxW: 0.3 * W });
+        ctx.fillStyle = sideInk; ctx.beginPath(); ctx.arc(cx, cy, r + 1.2 * u, 0, Math.PI * 2); ctx.fill();
+        g.photo(P, d, cx - r, cy - r, 2 * r, 2 * r, { circle: true, ph: mix(c.side, "#FFFFFF", 0.75), ink: c.side });
+        g.text(d.company, cx, cy + r + 6 * u, { size: 4.2 * u, weight: 700, color: sideInk, upper: true, track: 0.12, align: "center", maxW: 0.3 * W });
         g.stack([
-          T(d.name, { size: 8.5 * u, weight: 700, color: "#111111" }),
-          T(d.title, { size: 5 * u, weight: 600, color: A }),
+          T(d.name, { size: 8.5 * u, weight: 700, color: c.name }),
+          T(d.title, { size: 5 * u, weight: 600, color: c.sub }),
           S(3.5 * u),
-          ...contacts(d, { size: 4.5 * u, color: "#333333", icons: true, iconColor: A }),
+          ...contacts(d, { size: 4.5 * u, color: c.ink, icons: true, iconColor: A }),
         ], 0.42 * W, 0, { h: H, maxW: 0.53 * W });
       },
     },
     {
-      id: "minimal", name: "Minimal", tags: ["text", "light"], accent: "#9A7B4F", uses: {},
-      draw(g, d, P, A) {
+      id: "minimal", name: "Minimal", tags: ["text"], mode: "light", accent: "#9A7B4F", uses: {},
+      pal: {
+        light: A => ({ bg: "#F7F4EE", name: "#1A1A1A", ink: "#333333", company: "#555555", acc: A,
+          back: { bg: "#F7F4EE", head: "#1A1A1A", ink: "#333333", acc: A, dark: "#1A1A1A" } }),
+        dark: A => ({ bg: "#1A1917", name: "#F7F4EE", ink: "#CFCAC0", company: "#9C978D", acc: fit(A, "#1A1917", 4.5),
+          back: { bg: "#1A1917", head: "#F7F4EE", ink: "#CFCAC0", acc: fit(A, "#1A1917"), dark: "#1A1917" } }),
+      },
+      draw(g, d, P, A, c) {
         const { W, H, u } = g;
-        g.rect(0, 0, W, H, "#F7F4EE");
+        g.rect(0, 0, W, H, c.bg);
         const join = (...a) => a.filter(Boolean).join("  ·  ");
         g.stack([
-          T(d.name, { size: 11 * u, font: "serif", color: "#1A1A1A", track: 0.02 }),
+          T(d.name, { size: 11 * u, font: "serif", color: c.name, track: 0.02 }),
           T(d.title, { size: 4.2 * u, weight: 600, color: A, upper: true, track: 0.28 }),
           S(3 * u), R(12 * u, 0.35 * u, A), S(3.5 * u),
-          T(join(d.phone, d.email), { size: 4.4 * u, color: "#333333" }),
-          T(join(d.website, d.address), { size: 4.4 * u, color: "#333333" }),
+          T(join(d.phone, d.email), { size: 4.4 * u, color: c.ink }),
+          T(join(d.website, d.address), { size: 4.4 * u, color: c.ink }),
         ], W / 2, 0, { h: d.company ? 82 * u : H, align: "center", maxW: W - 12 * u });
-        g.text(d.company, W / 2, 85 * u, { size: 3.8 * u, color: "#555555", upper: true, track: 0.3, align: "center", maxW: W - 12 * u });
+        g.text(d.company, W / 2, 85 * u, { size: 3.8 * u, color: c.company, upper: true, track: 0.3, align: "center", maxW: W - 12 * u });
       },
     },
     {
-      id: "signal", name: "Signal", tags: ["text", "dark"], accent: "#D4FF3F", uses: {},
-      draw(g, d, P, A) {
+      id: "signal", name: "Signal", tags: ["text"], mode: "dark", accent: "#D4FF3F", uses: {},
+      pal: {
+        dark: A => ({ bg: "#08060B", kicker: "#4DE1FF", name: "#F5EFDF", ink: "rgba(245,239,223,0.72)", acc: fit(A, "#08060B", 4.5),
+          back: { bg: "#08060B", head: "#F5EFDF", ink: "rgba(245,239,223,0.72)", acc: fit(A, "#08060B"), dark: "#08060B" } }),
+        light: A => ({ bg: "#F5EFDF", kicker: "#0B6E80", name: "#08060B", ink: "rgba(8,6,11,0.72)", acc: fit(A, "#F5EFDF", 4.5),
+          back: { bg: "#F5EFDF", head: "#08060B", ink: "rgba(8,6,11,0.72)", acc: fit(A, "#F5EFDF"), dark: "#08060B" } }),
+      },
+      draw(g, d, P, A, c) {
         const { W, H, u } = g;
-        g.rect(0, 0, W, H, "#08060B");
+        g.rect(0, 0, W, H, c.bg);
         g.rect(0, 0, 2.4 * u, H, A);
-        g.text(d.company, 9 * u, 7 * u, { size: 3.8 * u, font: "mono", weight: 500, color: "#4DE1FF", upper: true, track: 0.14, maxW: W - 16 * u });
+        g.text(d.company, 9 * u, 7 * u, { size: 3.8 * u, font: "mono", weight: 500, color: c.kicker, upper: true, track: 0.14, maxW: W - 16 * u });
         g.stack([
-          T(d.name, { size: 13 * u, font: "display", color: "#F5EFDF", upper: true, track: 0.01, lh: 1.15 }),
+          T(d.name, { size: 13 * u, font: "display", color: c.name, upper: true, track: 0.01, lh: 1.15 }),
           T(d.title, { size: 4.4 * u, font: "mono", weight: 500, color: A, upper: true, track: 0.1 }),
           S(5 * u),
-          ...contacts(d, { size: 4.2 * u, font: "mono", color: "rgba(245,239,223,0.72)" }),
+          ...contacts(d, { size: 4.2 * u, font: "mono", color: c.ink }),
         ], 9 * u, 12 * u, { h: 84 * u, maxW: W - 16 * u });
       },
     },
   ];
 
   // ---------- Back side ----------
-  // Each front template hands its colours to the back so both sides match.
-  // bg: background, head: headings/brand, ink: body text, acc: accent, dark: QR module colour.
-  const PALS = {
-    band: A => ({ bg: "#1B2A4A", head: A, ink: "#FFFFFF", acc: A, dark: "#1B2A4A" }),
-    counsel: A => ({ bg: "#14213D", head: A, ink: "#E2E8F0", acc: A, dark: "#14213D" }),
-    graphite: A => ({ bg: "#2E3134", head: "#ECEDEE", ink: "#D5D8DB", acc: A, dark: "#2E3134" }),
-    blueprint: A => ({ bg: "#FFFFFF", head: "#111111", ink: "#333333", acc: A, dark: "#111111" }),
-    agent: A => ({ bg: "#FFFFFF", head: "#111111", ink: "#222222", acc: A, dark: "#111111" }),
-    monogram: A => ({ bg: "#FBFAF7", head: "#151515", ink: "#333333", acc: A, dark: "#151515" }),
-    calm: A => ({ bg: mix(A, "#FFFFFF", 0.72), head: mix(A, "#000000", 0.45), ink: "#2B3A42", acc: A, dark: mix(A, "#000000", 0.45) }),
-    portrait: A => ({ bg: A, head: "#FFFFFF", ink: mix(A, "#FFFFFF", 0.85), acc: "#FFFFFF", dark: mix(A, "#000000", 0.45) }),
-    minimal: A => ({ bg: "#F7F4EE", head: "#1A1A1A", ink: "#333333", acc: A, dark: "#1A1A1A" }),
-    signal: A => ({ bg: "#08060B", head: "#F5EFDF", ink: "rgba(245,239,223,0.72)", acc: A, dark: "#08060B" }),
-  };
+  // Each front template hands its colours (c.back) to the back so both sides match.
   const rgba = (hex, a) => `rgba(${rgb(hex).join(",")},${a})`;
-  const onColor = hex => { const [r, gr, b] = rgb(hex); return 0.299 * r + 0.587 * gr + 0.114 * b > 150 ? "#111111" : "#FFFFFF"; };
   const urlOf = w => !w ? "" : /^[a-z][a-z0-9+.-]*:/i.test(w) ? w : "https://" + w;
 
   // Brand mark for the back: logo, else company name, else initials, fitted to a w×h box.
@@ -514,10 +572,12 @@
 
   // ---------- State (memory only) ----------
   const state = {
-    tpl: null, filter: "all", size: "eu", accents: {}, photo: null, logo: null, backImg: null,
+    tpl: null, filter: "all", size: "eu", accents: {}, modes: {}, photo: null, logo: null, backImg: null,
     zoom: 1, fx: 0.5, fy: 0.3, bleed: false, back: true, backId: "centre", qr: true,
   };
   const accentOf = t => state.accents[t.id] || t.accent;
+  const modeOf = t => state.modes[t.id] || t.mode;
+  const colours = t => t.pal[modeOf(t)](accentOf(t));
 
   const clean = s => s.trim().replace(/\s+/g, " ");
   function userData() {
@@ -543,9 +603,11 @@
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     return g;
   }
-  const paintFront = (tpl, d, P) => g => tpl.draw(g, d, P, accentOf(tpl));
-  const paintBack = (back, tpl, d, P) => g =>
-    back.draw(g, d, P, PALS[tpl.id](accentOf(tpl)), state.qr ? qrWithMark(g, d, P, PALS[tpl.id](accentOf(tpl))) : null);
+  const paintFront = (tpl, d, P) => g => { const c = colours(tpl); tpl.draw(g, d, P, c.acc, c); };
+  const paintBack = (back, tpl, d, P) => g => {
+    const p = colours(tpl).back;
+    back.draw(g, d, P, p, state.qr ? qrWithMark(g, d, P, p) : null);
+  };
 
   // QR for the website with the logo in the middle (or an initials badge when there is no logo).
   function qrWithMark(g, d, P, p) {
@@ -571,7 +633,7 @@
       const cv = document.createElement("canvas");
       const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = t.name;
       const tg = document.createElement("span"); tg.className = "tg";
-      tg.textContent = [t.uses.photo ? "Photo" : t.uses.logo ? "Logo" : "Text only", t.tags.includes("dark") ? "Dark" : "Light"].join(" · ");
+      tg.textContent = t.uses.photo ? "Photo" : t.uses.logo ? "Logo" : "Text only";
       btn.setAttribute("aria-label", `${t.name} template, ${tg.textContent}`);
       btn.append(cv, nm, tg);
       btn.onclick = () => chooseTemplate(t);
@@ -646,9 +708,15 @@
     thumbs.forEach(({ btn }, id) => btn.setAttribute("aria-current", id === t.id));
     $("tplName").textContent = t.name;
     $("accent").value = accentOf(t);
+    syncMode();
     syncFields();
     showStep(2);
     render();
+  }
+
+  function syncMode() {
+    const m = modeOf(state.tpl);
+    document.querySelectorAll("#mode button").forEach(b => b.setAttribute("aria-pressed", b.dataset.m === m));
   }
 
   // ---------- Step 2: preview ----------
@@ -821,6 +889,9 @@
   });
   ["zoom", "fx", "fy"].forEach(id => $(id).addEventListener("input", () => { state[id] = +$(id).value; schedule(); }));
   $("accent").addEventListener("input", () => { state.accents[state.tpl.id] = $("accent").value; schedule(); });
+  document.querySelectorAll("#mode button").forEach(b => {
+    b.onclick = () => { state.modes[state.tpl.id] = b.dataset.m; syncMode(); drawThumbs(); render(); };
+  });
   $("accentReset").onclick = () => { delete state.accents[state.tpl.id]; $("accent").value = state.tpl.accent; render(); };
   $("size").onchange = () => { state.size = $("size").value; render(); };
   $("bleed").onchange = () => { state.bleed = $("bleed").checked; render(); };
@@ -846,7 +917,7 @@
   $("clearAll").onclick = () => {
     FIELDS.forEach(id => { $(id).value = ""; });
     state.zoom = 1; state.fx = 0.5; state.fy = 0.3; $("zoom").value = 1; $("fx").value = 0.5; $("fy").value = 0.3;
-    state.accents = {}; if (state.tpl) $("accent").value = state.tpl.accent;
+    state.accents = {}; state.modes = {}; if (state.tpl) { $("accent").value = state.tpl.accent; syncMode(); }
     clearImage("logo"); clearImage("photo"); clearImage("backImg");
   };
   window.addEventListener("resize", schedule);

@@ -57,6 +57,7 @@
   fieldset{ border:0; margin:0 0 20px; padding:0; min-width:0; }
   legend{ margin-bottom:8px; padding:0; }
   label{ display:block; margin:10px 0 5px; }
+  .lbl{ display:block; margin:10px 0 5px; font-family:var(--mono); font-size:11.5px; letter-spacing:.04em; color:var(--paper-dim); }
   .chosen{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:18px; padding-bottom:14px; border-bottom:1px solid var(--line); }
   .chosen b{ font-family:var(--mono); font-weight:500; color:var(--acid); letter-spacing:.06em; text-transform:uppercase; font-size:13px; }
   .chosen small{ display:block; font-family:var(--mono); font-size:11px; color:var(--paper-dim); }
@@ -129,8 +130,6 @@
         <button type="button" data-f="photo" aria-pressed="false">With photo</button>
         <button type="button" data-f="logo" aria-pressed="false">With logo</button>
         <button type="button" data-f="text" aria-pressed="false">Text only</button>
-        <button type="button" data-f="dark" aria-pressed="false">Dark</button>
-        <button type="button" data-f="light" aria-pressed="false">Light</button>
       </div>
       <p class="count" id="count" role="status"></p>
       <div class="tpls" id="tpls"></div>
@@ -215,6 +214,11 @@
 
       <fieldset>
         <legend>Style</legend>
+        <p class="lbl" id="modeLbl">Colours</p>
+        <div class="seg" id="mode" role="group" aria-labelledby="modeLbl">
+          <button type="button" data-m="light" aria-pressed="true">Light</button>
+          <button type="button" data-m="dark" aria-pressed="false">Dark</button>
+        </div>
         <label for="accent">Accent colour</label>
         <div class="color-field">
           <input type="color" id="accent" aria-label="Accent colour">

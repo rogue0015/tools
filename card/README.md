@@ -6,9 +6,10 @@ step, no internet connection needed.
 
 ## How it works
 
-1. **Template.** Filter with the buttons (With photo, With logo, Text only, Dark,
-   Light) and tap a template. Thumbnails show your own details once you've typed
+1. **Template.** Filter with the buttons (With photo, With logo, Text only) and tap a
+   template. Thumbnails show your own details once you've typed
    them, so you can go back and compare.
+   Every template has a **Light / Dark** switch under Style; the back follows it.
 2. **Details.** Upload a logo or photo (only the slot the template uses is shown),
    fill in name, title, company, phone, email, website and address. Empty fields
    are left off. Photos can be zoomed and moved. No photo or logo? Your initials
