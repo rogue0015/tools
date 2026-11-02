@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#08060B">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' file:; connect-src 'none'; form-action 'none'">
+<title>Business Card Maker</title>
+<link rel="stylesheet" href="../theme.css">
+<style>
+  :root{ --ok:var(--acid); --warn:#FFB27F; }
+  header{ max-width:1200px; margin:0 auto; padding:16px var(--gutter) 4px; }
+  .privacy{
+    margin:16px 0 0; padding:10px 14px; border:1px solid var(--line); border-left:2px solid var(--acid);
+    background:var(--panel-glass); color:var(--paper-dim); font-family:var(--mono); font-size:12px; letter-spacing:.02em;
+  }
+  main{ max-width:1200px; margin:0 auto; padding:16px var(--gutter) calc(40px + env(safe-area-inset-bottom)); }
+  .panel{ padding:18px 16px; min-width:0; }
+  @media (min-width:820px){ header{ padding:28px 24px 4px; } main{ padding:16px 24px 48px; } .panel{ padding:20px; } }
+
+  /* step indicator */
+  .steps{ display:flex; gap:8px; margin:0 0 16px; font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; }
+  .steps span{ flex:1; padding:8px 10px; border:1px solid var(--line); color:var(--paper-dim); }
+  .steps span.on{ border-color:var(--acid); color:var(--acid); }
+
+  /* step 1: filters + template gallery */
+  .chips{ display:flex; flex-wrap:wrap; gap:6px; margin:0 0 16px; }
+  .chips button{
+    min-height:var(--tap); padding:8px 14px; border:1px solid var(--line-strong); border-radius:0; cursor:pointer; touch-action:manipulation;
+    background:transparent; color:var(--paper-dim); font-family:var(--mono); font-size:11.5px; letter-spacing:.08em; text-transform:uppercase;
+    transition:background .2s, color .2s, border-color .2s;
+  }
+  @media (hover:hover){ .chips button:hover{ color:var(--paper); border-color:var(--paper-dim); } }
+  .chips button[aria-pressed=true]{ background:var(--acid); border-color:var(--acid); color:var(--void); font-weight:600; }
+  .count{ font-family:var(--mono); font-size:11.5px; color:var(--paper-dim); margin:-6px 0 14px; }
+  .tpls{ display:grid; gap:12px; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); }
+  @media (min-width:640px){ .tpls{ gap:16px; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); } }
+  .tpl{
+    display:flex; flex-direction:column; gap:10px; padding:10px; text-align:left; cursor:pointer; touch-action:manipulation;
+    background:var(--field); border:1px solid var(--line); border-radius:0; color:var(--paper);
+    transition:border-color .2s, transform .2s;
+  }
+  .tpl canvas{ width:100%; height:auto; display:block; box-shadow:0 6px 18px rgba(0,0,0,.45); }
+  .tpl .nm{ font-family:var(--mono); font-size:12px; letter-spacing:.06em; text-transform:uppercase; }
+  .tpl .tg{ font-family:var(--mono); font-size:10.5px; color:var(--paper-dim); letter-spacing:.04em; }
+  .tpl[aria-current=true]{ border-color:var(--acid); }
+  .tpl[aria-current=true] .nm{ color:var(--acid); }
+  .tpl:active{ border-color:var(--sunburst); }
+  @media (hover:hover){ .tpl:hover{ border-color:var(--acid); transform:translateY(-2px); } }
+
+  /* step 2: form + preview */
+  .work{ display:grid; gap:16px; grid-template-columns:minmax(0,1fr); align-items:start; }
+  @media (min-width:820px){ .work{ gap:18px; grid-template-columns:minmax(300px,420px) 1fr; } .stage-panel{ position:sticky; top:16px; } }
+  fieldset{ border:0; margin:0 0 20px; padding:0; min-width:0; }
+  legend{ margin-bottom:8px; padding:0; }
+  label{ display:block; margin:10px 0 5px; }
+  .chosen{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:18px; padding-bottom:14px; border-bottom:1px solid var(--line); }
+  .chosen b{ font-family:var(--mono); font-weight:500; color:var(--acid); letter-spacing:.06em; text-transform:uppercase; font-size:13px; }
+  .chosen small{ display:block; font-family:var(--mono); font-size:11px; color:var(--paper-dim); }
+  .img-row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .img-row img{ max-height:44px; max-width:90px; border:1px solid var(--line); background:#fff; }
+  .hint{ font-size:12.5px; color:var(--paper-dim); margin:6px 0 0; }
+  .sliders label{ margin:6px 0 0; }
+  .row2{ display:grid; grid-template-columns:1fr; gap:0 10px; }
+  @media (min-width:480px){ .row2{ grid-template-columns:1fr 1fr; } }
+  .color-field{ display:flex; gap:8px; align-items:center; }
+  input[type=color]{
+    -webkit-appearance:none; appearance:none; width:var(--tap); height:var(--tap); padding:0;
+    border:1px solid var(--line-strong); border-radius:0; background:none; cursor:pointer; flex:0 0 auto;
+  }
+  input[type=color]::-webkit-color-swatch-wrapper{ padding:3px; }
+  input[type=color]::-webkit-color-swatch{ border:none; border-radius:0; }
+  input[type=color]::-moz-color-swatch{ border:none; border-radius:0; }
+  .stage{ display:flex; flex-direction:column; gap:14px; }
+  .canvas-wrap{ padding:18px; background:repeating-linear-gradient(45deg, rgba(245,239,223,.03) 0 10px, transparent 10px 20px); border:1px solid var(--line); }
+  #preview, #previewBack{ width:100%; height:auto; display:block; box-shadow:0 10px 30px rgba(0,0,0,.55); }
+  .side{ margin:0 0 8px; font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--paper-dim); }
+  #backSide .side{ margin-top:18px; }
+  .backs{ display:grid; gap:8px; grid-template-columns:1fr 1fr; }
+  .backs .tpl{ padding:6px; gap:6px; }
+  .backs .tpl canvas{ box-shadow:0 3px 10px rgba(0,0,0,.45); }
+  .backs .tpl .nm{ font-size:10.5px; }
+  .hint-inline{ color:var(--paper-dim); opacity:.8; }
+  .meta{ font-family:var(--mono); font-size:11.5px; color:var(--paper-dim); }
+  .meta b{ color:var(--acid); font-weight:500; }
+  .check{ display:flex; align-items:center; gap:10px; min-height:var(--tap); cursor:pointer; font-family:var(--sans); font-size:14px; letter-spacing:0; color:var(--paper); margin:0; }
+  .check input{ flex:0 0 auto; }
+  .actions{ display:grid; gap:8px; grid-template-columns:1fr; }
+  @media (min-width:560px){ .actions{ display:flex; flex-wrap:wrap; } }
+  .status{ font-family:var(--mono); font-size:12px; min-height:1.2em; color:var(--paper-dim); }
+  .status.warn{ color:var(--warn); } .status.ok{ color:var(--ok); }
+  #stagePanel{ scroll-margin-top:12px; }
+  .jump{
+    position:sticky; bottom:calc(12px + env(safe-area-inset-bottom)); z-index:5;
+    display:flex; align-items:center; justify-content:center; min-height:var(--tap); margin:18px 0 0;
+    background:var(--acid); color:var(--void); text-decoration:none;
+    font-family:var(--mono); font-size:12px; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+    box-shadow:0 10px 30px rgba(0,0,0,.55);
+  }
+  @media (min-width:820px){ .jump{ display:none; } }
+  [hidden]{ display:none !important; }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<header>
+  <div class="topbar">
+    <span class="brandmark"><span class="dotlive"></span> <span class="full">BRANDON.T.BANDE //&nbsp;</span>ROGUE0015</span>
+    <a class="back" href="../index.html">← ALL APPS</a>
+  </div>
+  <div class="tag">APP 03 / PRINT</div>
+  <h1>Business Card <span class="accent">Maker</span></h1>
+  <p class="sub">Pick a template, add your logo or photo and details, then download a high-resolution PNG or print-ready PDF.</p>
+  <p class="privacy">// Nothing is uploaded or saved. Your details and images stay in this browser tab and are discarded when you close or reload the page.</p>
+</header>
+
+<main>
+  <div class="steps" aria-hidden="true"><span id="s1tag" class="on">01 · Template</span><span id="s2tag">02 · Details &amp; download</span></div>
+
+  <!-- STEP 1 -->
+  <section class="panel" id="step1" aria-label="Choose a template">
+    <fieldset>
+      <legend>Filter templates</legend>
+      <div class="chips" id="filters" role="group" aria-label="Filter templates">
+        <button type="button" data-f="all" aria-pressed="true">All</button>
+        <button type="button" data-f="photo" aria-pressed="false">With photo</button>
+        <button type="button" data-f="logo" aria-pressed="false">With logo</button>
+        <button type="button" data-f="text" aria-pressed="false">Text only</button>
+        <button type="button" data-f="dark" aria-pressed="false">Dark</button>
+        <button type="button" data-f="light" aria-pressed="false">Light</button>
+      </div>
+      <p class="count" id="count" role="status"></p>
+      <div class="tpls" id="tpls"></div>
+    </fieldset>
+  </section>
+
+  <!-- STEP 2 -->
+  <div class="work" id="step2" hidden>
+    <section class="panel" aria-label="Details">
+      <div class="chosen">
+        <div><small>Template</small><b id="tplName"></b></div>
+        <button type="button" class="btn" id="changeTpl">← Change</button>
+      </div>
+
+      <fieldset id="imgSet">
+        <legend>Images</legend>
+        <div id="logoField">
+          <label for="logoFile">Logo</label>
+          <div class="img-row">
+            <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml">
+            <img id="logoThumb" alt="" hidden>
+            <button type="button" class="btn" id="logoClear" hidden>Remove</button>
+          </div>
+          <p class="hint">PNG with a transparent background looks best. Used on the front (if the template has a logo) and on the back.</p>
+        </div>
+        <div id="photoField">
+          <label for="photoFile">Photo</label>
+          <div class="img-row">
+            <input type="file" id="photoFile" accept="image/png,image/jpeg,image/webp,image/gif">
+            <img id="photoThumb" alt="" hidden>
+            <button type="button" class="btn" id="photoClear" hidden>Remove</button>
+          </div>
+          <div class="sliders" id="photoAdjust" hidden>
+            <label for="zoom">Zoom</label><input type="range" id="zoom" min="1" max="3" step="0.01" value="1">
+            <div class="row2">
+              <div><label for="fx">Left ↔ right</label><input type="range" id="fx" min="0" max="1" step="0.01" value="0.5"></div>
+              <div><label for="fy">Up ↕ down</label><input type="range" id="fy" min="0" max="1" step="0.01" value="0.3"></div>
+            </div>
+          </div>
+          <p class="hint">A head-and-shoulders photo works best. Without one, your initials are used.</p>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Details</legend>
+        <label for="name">Full name</label>
+        <input type="text" id="name" autocomplete="off" maxlength="60">
+        <div class="row2">
+          <div><label for="title">Job title</label><input type="text" id="title" autocomplete="off" maxlength="60"></div>
+          <div><label for="company">Company</label><input type="text" id="company" autocomplete="off" maxlength="60"></div>
+        </div>
+        <div class="row2">
+          <div><label for="phone">Phone</label><input type="text" id="phone" autocomplete="off" inputmode="tel" maxlength="40"></div>
+          <div><label for="email">Email</label><input type="text" id="email" autocomplete="off" inputmode="email" maxlength="60"></div>
+        </div>
+        <label for="website">Website</label>
+        <input type="text" id="website" autocomplete="off" inputmode="url" maxlength="60">
+        <label for="address">Address</label>
+        <input type="text" id="address" autocomplete="off" maxlength="80">
+        <p class="hint">Empty fields are left off the card.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Back side</legend>
+        <label class="check"><input type="checkbox" id="backOn" checked> Include a back side</label>
+        <div id="backOpts">
+          <label>Back design <span class="hint-inline">· colours follow your front template</span></label>
+          <div class="backs" id="backs"></div>
+          <label for="tagline">Tagline</label>
+          <input type="text" id="tagline" autocomplete="off" maxlength="80" placeholder="e.g. Ideas that move people.">
+          <label class="check"><input type="checkbox" id="qrOn" checked> QR code linking to your website</label>
+          <p class="hint">Uses the Website field above. Scan it with your phone to check before printing.</p>
+          <label for="backImgFile">Background image (optional)</label>
+          <div class="img-row">
+            <input type="file" id="backImgFile" accept="image/png,image/jpeg,image/webp,image/gif">
+            <img id="backImgThumb" alt="" hidden>
+            <button type="button" class="btn" id="backImgClear" hidden>Remove</button>
+          </div>
+          <p class="hint">Shown in the Full image and Split designs, tinted so text stays readable.</p>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Style</legend>
+        <label for="accent">Accent colour</label>
+        <div class="color-field">
+          <input type="color" id="accent" aria-label="Accent colour">
+          <button type="button" class="btn" id="accentReset">Template default</button>
+        </div>
+        <label for="size">Card size</label>
+        <select id="size">
+          <option value="eu">85 × 55 mm (Europe / Africa)</option>
+          <option value="wide">90 × 55 mm</option>
+          <option value="us">3.5 × 2 in (US / Canada)</option>
+          <option value="slim">90 × 50 mm</option>
+        </select>
+      </fieldset>
+
+      <button type="button" class="btn" id="clearAll">Clear all</button>
+      <a class="jump" href="#stagePanel">&darr; Preview &amp; download</a>
+    </section>
+
+    <section class="panel stage stage-panel" id="stagePanel" aria-label="Preview">
+      <div class="canvas-wrap" id="wrap">
+        <p class="side">Front</p>
+        <canvas id="preview" role="img" aria-label="Business card front preview"></canvas>
+        <div id="backSide">
+          <p class="side">Back</p>
+          <canvas id="previewBack" role="img" aria-label="Business card back preview"></canvas>
+        </div>
+      </div>
+      <p class="meta" id="meta"></p>
+      <div class="status" id="status" role="status"></div>
+      <label class="check"><input type="checkbox" id="bleed"> Add 3 mm bleed (ask your print shop)</label>
+      <div class="actions">
+        <button type="button" class="btn primary" id="pngBtn">Front PNG</button>
+        <button type="button" class="btn primary" id="pngBackBtn">Back PNG</button>
+        <button type="button" class="btn primary" id="pdfBtn">PDF · front + back</button>
+        <button type="button" class="btn" id="sheetBtn">A4 sheet · 10 cards (PDF)</button>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script src="jspdf.umd.min.js"></script>
+<script src="qrcode.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
