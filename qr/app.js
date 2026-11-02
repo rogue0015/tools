@@ -405,6 +405,7 @@
     if (el.saveImg) el.saveImg.src = el.canvas.toDataURL('image/png');
     setEnabled(true);
     note(el.statusNote, '');
+    if (shareMenu) shareMenu.refresh();
 
     el.metaVersion.textContent = plan.version;
     el.metaModules.textContent = plan.count + ' x ' + plan.count + ' modules';
@@ -463,6 +464,23 @@
     var svg = toSVG(state.plan);
     save(new Blob([svg], { type: 'image/svg+xml' }), fileStem() + '.svg');
     note(el.statusNote, 'Saved ' + fileStem() + '.svg - scales to any size.', true);
+  });
+
+  var shareMenu = window.ShareMenu && el.dlPng && ShareMenu.attach({
+    after: el.dlPng.parentNode,
+    btnClass: 'wide',
+    syncWith: el.dlPng,
+    onStatus: function (msg, ok) { note(el.statusNote, msg, ok); },
+    formats: [
+      { label: 'PNG', make: function () {
+          return new Promise(function (res, rej) {
+            el.canvas.toBlob(function (b) { b ? res({ blob: b, name: fileStem() + '.png' }) : rej(new Error('PNG failed')); }, 'image/png');
+          });
+        } },
+      { label: 'SVG', make: function () {
+          return { blob: new Blob([toSVG(state.plan)], { type: 'image/svg+xml' }), name: fileStem() + '.svg' };
+        } }
+    ]
   });
 
   if (el.copySvg) el.copySvg.addEventListener('click', function () {

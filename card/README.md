@@ -25,7 +25,10 @@ step, no internet connection needed.
      with columns mirrored, so they line up when printed double-sided (flip on long edge).
    - Tick **3 mm bleed** if your print shop asks for it (PNG and PDF).
 
-The QR code is always dark-on-white with a quiet margin so phones can scan it.
+The QR code has your logo in the middle (or an initials badge if there is no logo).
+It uses the highest error correction (H, 30%), and the logo covers under 10% of the
+code, so it still scans; tested on all four back designs with short and long URLs.
+It is always dark-on-white with a quiet margin.
 A website without `http(s)://` gets `https://` added in the code. Scan the
 preview with your phone before printing.
 

@@ -164,16 +164,22 @@
     };
 
     // QR code on a white plate (always dark-on-light so phones can scan it). size includes a 2-module margin.
-    g.qr = (m, x, y, size, dark) => {
+    // With mark(x, y, w), the centre modules are cleared and the mark (logo) is drawn there. The code is
+    // made with error correction H (30%), and the cleared square (30% of the width, under 10% of the modules) still scans.
+    g.qr = (m, x, y, size, dark, mark) => {
       const q = 2, s = size / (m.n + 2 * q);
+      let k = mark ? Math.floor(m.n * 0.3) : 0;
+      if (k && k % 2 === 0) k--; // odd, so it sits exactly in the middle (n is always odd)
+      const a = (m.n - k) / 2, inHole = (r, c) => r >= a && r < a + k && c >= a && c < a + k;
       ctx.fillStyle = "#FFFFFF"; ctx.fillRect(x, y, size, size);
       ctx.fillStyle = dark;
       for (let r = 0; r < m.n; r++) for (let c = 0; c < m.n; c++) {
-        if (!m.dark(r, c)) continue;
+        if (!m.dark(r, c) || inHole(r, c)) continue;
         // rounded edges so neighbouring modules touch with no hairline gaps
         const x0 = Math.round(x + (c + q) * s), y0 = Math.round(y + (r + q) * s);
         ctx.fillRect(x0, y0, Math.round(x + (c + q + 1) * s) - x0, Math.round(y + (r + q + 1) * s) - y0);
       }
+      if (k) mark(x + (q + a + 0.5) * s, y + (q + a + 0.5) * s, (k - 1) * s); // half-module white border
     };
     return g;
   }
@@ -430,14 +436,14 @@
 
   // Logo, tagline, website centred; small QR bottom-right.
   function centred(g, d, P, p, qr, ink) {
-    const { W, H, u } = g, q = qr ? 27 * u : 0, mw = qr ? W - 2 * (q + 9 * u) : W - 16 * u;
+    const { W, H, u } = g, q = qr ? 30 * u : 0, mw = qr ? W - 2 * (q + 9 * u) : W - 16 * u;
     g.stack([
       B(Math.min(mw, 0.5 * W), 28 * u, (x, y) => brand(g, d, P, x, y, Math.min(mw, 0.5 * W), 28 * u, ink || p.head)),
       S(5 * u), ...tagItems(g, d, 5.4 * u, ink || p.ink, mw),
       S(3.5 * u), R(10 * u, 0.4 * u, p.acc), S(3.5 * u),
       T(d.website, { size: 4.4 * u, weight: 600, color: ink || p.head, track: 0.06 }),
     ], W / 2, 0, { h: H, align: "center", maxW: mw });
-    if (qr) g.qr(qr, W - q - 6 * u, H - q - 6 * u, q, p.dark);
+    if (qr) g.qr(qr, W - q - 6 * u, H - q - 6 * u, q, p.dark, qr.mark);
   }
 
   const BACKS = [
@@ -449,7 +455,7 @@
         g.rect(0, 0, W, H, p.bg);
         if (!qr) return centred(g, d, P, p, null);
         const qs = 64 * u, qx = 9 * u, x0 = qx + qs + 8 * u, cw = W - x0 - 7 * u;
-        g.qr(qr, qx, (H - qs) / 2, qs, p.dark);
+        g.qr(qr, qx, (H - qs) / 2, qs, p.dark, qr.mark);
         g.stack([
           B(cw, 22 * u, (x, y) => P.logo ? g.img(P.logo, x, y, cw, 22 * u, { fit: "contain", ax: 0 })
             : g.text(d.company || d.name, x, y + 11 * u - 5.5 * u, { size: 8.5 * u, weight: 700, color: p.head, upper: true, maxW: cw, lh: 1 })),
@@ -489,7 +495,7 @@
           ...tagItems(g, d, 5 * u, p.ink, cw),
           S(3 * u), R(10 * u, 0.4 * u, p.acc === "#FFFFFF" ? p.head : p.acc), S(3 * u),
           T(d.website, { size: 4.4 * u, weight: 600, color: p.head }),
-          qr && S(5 * u), qr && B(qs, qs, (x, y) => g.qr(qr, x, y, qs, p.dark)),
+          qr && S(5 * u), qr && B(qs, qs, (x, y) => g.qr(qr, x, y, qs, p.dark, qr.mark)),
         ].filter(Boolean), pw + (W - pw) / 2, 0, { h: H, align: "center", maxW: cw });
       },
     },
@@ -500,7 +506,7 @@
     if (!text || !window.qrcode) return null;
     if (!qrCache.has(text)) {
       let m = null;
-      try { const q = qrcode(0, "M"); q.addData(text); q.make(); m = { n: q.getModuleCount(), dark: (r, c) => q.isDark(r, c) }; } catch (e) { /* too long */ }
+      try { const q = qrcode(0, "H"); q.addData(text); q.make(); m = { n: q.getModuleCount(), dark: (r, c) => q.isDark(r, c) }; } catch (e) { /* too long */ }
       qrCache.set(text, m);
     }
     return qrCache.get(text);
@@ -539,7 +545,20 @@
   }
   const paintFront = (tpl, d, P) => g => tpl.draw(g, d, P, accentOf(tpl));
   const paintBack = (back, tpl, d, P) => g =>
-    back.draw(g, d, P, PALS[tpl.id](accentOf(tpl)), state.qr ? qrFor(urlOf(d.website)) : null);
+    back.draw(g, d, P, PALS[tpl.id](accentOf(tpl)), state.qr ? qrWithMark(g, d, P, PALS[tpl.id](accentOf(tpl))) : null);
+
+  // QR for the website with the logo in the middle (or an initials badge when there is no logo).
+  function qrWithMark(g, d, P, p) {
+    const m = qrFor(urlOf(d.website));
+    if (!m) return null;
+    const mark = P.logo ? (x, y, w) => g.img(P.logo, x, y, w, w, { fit: "contain" })
+      : d.initials ? (x, y, w) => {
+        const ctx = g.ctx;
+        ctx.fillStyle = p.dark; ctx.beginPath(); ctx.arc(x + w / 2, y + w / 2, w / 2, 0, Math.PI * 2); ctx.fill();
+        g.text(d.initials, x + w / 2, y + w / 2 - w * 0.42 * 0.65, { size: w * 0.42, font: "display", color: "#FFFFFF", align: "center", lh: 1 });
+      } : null;
+    return mark ? { ...m, mark } : m;
+  }
   const backDesign = () => BACKS.find(b => b.id === state.backId);
 
   // ---------- Step 1: gallery ----------
@@ -671,6 +690,7 @@
     if (!ready) notes.unshift("Enter your name to enable downloads.");
     setStatus(notes.join(" "), cut || !ready ? "warn" : "");
     ["pngBtn", "pngBackBtn", "pdfBtn", "sheetBtn"].forEach(id => { $(id).disabled = !ready; });
+    if (shareMenu) shareMenu.refresh();
   }
   function setStatus(msg, cls) { const s = $("status"); s.textContent = msg; s.className = "status " + (cls || ""); }
 
@@ -734,13 +754,17 @@
     return out;
   }
 
-  function exportPNG(side) {
+  function makePNG(side) {
     const bin = atob(exportCanvas(side, state.bleed ? BLEED_MM : 0).toDataURL("image/png").split(",")[1]);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    download(new Blob([setPngDpi(bytes)], { type: "image/png" }), fileName("png", state.back ? side : ""));
+    return { blob: new Blob([setPngDpi(bytes)], { type: "image/png" }), name: fileName("png", state.back ? side : "") };
   }
-  function exportPDF() {
+  function exportPNG(side) { const f = makePNG(side); download(f.blob, f.name); }
+  function exportPDF() { buildPDF().save(fileName("pdf")); }
+  function exportSheet() { buildSheet().save(fileName("pdf", "A4 sheet")); }
+  const pdfFile = (doc, name) => ({ blob: doc.output("blob"), name });
+  function buildPDF() {
     const sz = SIZES[state.size], b = state.bleed ? BLEED_MM : 0;
     const w = sz.w + 2 * b, h = sz.h + 2 * b;
     const { jsPDF } = window.jspdf;
@@ -750,11 +774,11 @@
       doc.addPage([w, h], "landscape");
       doc.addImage(exportCanvas("back", b).toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, w, h);
     }
-    doc.save(fileName("pdf"));
+    return doc;
   }
   // A4, 2 × 5 cards with cut marks. Page 2 holds the backs, columns mirrored so they line up
   // when printed double-sided (flip on long edge).
-  function exportSheet() {
+  function buildSheet() {
     const sz = SIZES[state.size], cols = 2, rows = 5;
     const gx = (210 - cols * sz.w) / 2, gy = (297 - rows * sz.h) / 2;
     const { jsPDF } = window.jspdf;
@@ -773,7 +797,7 @@
     };
     page("front", false);
     if (state.back) { doc.addPage("a4", "portrait"); page("back", true); }
-    doc.save(fileName("pdf", "A4 sheet"));
+    return doc;
   }
   function run(fn, label) {
     setStatus("Preparing " + label + "…");
@@ -806,6 +830,19 @@
   $("pngBackBtn").onclick = () => run(() => exportPNG("back"), "Back PNG");
   $("pdfBtn").onclick = () => run(exportPDF, "PDF");
   $("sheetBtn").onclick = () => run(exportSheet, "A4 sheet");
+  var shareMenu = window.ShareMenu && ShareMenu.attach({
+    after: document.querySelector(".stage .actions") || $("pdfBtn").parentNode,
+    syncWith: $("pdfBtn"),
+    onStatus: (msg, ok) => setStatus(msg, ok ? "ok" : "warn"),
+    formats: [
+      { label: "PDF · front + back", make: () => pdfFile(buildPDF(), fileName("pdf")), show: () => state.back },
+      { label: "PDF", make: () => pdfFile(buildPDF(), fileName("pdf")), show: () => !state.back },
+      { label: "Front PNG", make: () => makePNG("front"), show: () => state.back },
+      { label: "PNG", make: () => makePNG("front"), show: () => !state.back },
+      { label: "Back PNG", make: () => makePNG("back"), show: () => state.back },
+      { label: "A4 sheet · 10 cards (PDF)", make: () => pdfFile(buildSheet(), fileName("pdf", "A4 sheet")) },
+    ],
+  });
   $("clearAll").onclick = () => {
     FIELDS.forEach(id => { $(id).value = ""; });
     state.zoom = 1; state.fx = 0.5; state.fy = 0.3; $("zoom").value = 1; $("fx").value = 0.5; $("fy").value = 0.3;

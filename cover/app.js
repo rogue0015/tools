@@ -100,6 +100,7 @@
   function updateButtons() {
     const ok = $("confirm").checked && !blocked && lastModel && lastModel.blocks.length;
     $("pdfBtn").disabled = $("docxBtn").disabled = !ok;
+    if (shareMenu) shareMenu.refresh();
   }
   function setStatus(msg, cls) { const s = $("status"); s.textContent = msg; s.className = "status " + (cls || ""); }
 
@@ -172,7 +173,8 @@
     return out;
   }
 
-  function exportPDF() {
+  function exportPDF() { buildPDF().save(fileName("pdf")); }
+  function buildPDF() {
     pdfLossy = 0;
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
@@ -213,11 +215,12 @@
     const height = y - MARGIN - (last ? last.after || 0 : 0); // trailing gap is not content
     y = Math.max(MARGIN, (PAGE_H - height) / 2); draw = true;
     layout();
-    doc.save(fileName("pdf"));
+    return doc;
   }
 
   // ---------- DOCX ----------
-  async function exportDOCX() {
+  async function exportDOCX() { download(await buildDOCX(), fileName("docx")); }
+  async function buildDOCX() {
     const D = window.docx;
     const mm2tw = mm => Math.round(mm * 56.6929);
     const run = t => new D.TextRun({ text: t, bold: true, size: FONT_PT * 2, font: "Times New Roman" });
@@ -249,7 +252,7 @@
         children: kids.length ? kids : [new D.Paragraph({ children: [] })],
       }],
     });
-    download(await D.Packer.toBlob(doc), fileName("docx"));
+    return D.Packer.toBlob(doc);
   }
 
   // ---------- Helpers ----------
@@ -281,6 +284,15 @@
   $("confirm").onchange = updateButtons;
   $("pdfBtn").onclick = () => run(exportPDF, "PDF");
   $("docxBtn").onclick = () => run(exportDOCX, "Word file");
+  var shareMenu = window.ShareMenu && ShareMenu.attach({
+    after: $("pdfBtn").parentNode,
+    syncWith: $("pdfBtn"),
+    onStatus: (msg, ok) => setStatus(msg, ok ? "ok" : "warn"),
+    formats: [
+      { label: "PDF", make: () => ({ blob: buildPDF().output("blob"), name: fileName("pdf") }) },
+      { label: "Word (.docx)", make: async () => ({ blob: await buildDOCX(), name: fileName("docx") }) },
+    ],
+  });
   $("fullBtn").onclick = () => { $("dlgSheet").innerHTML = sheetHTML(lastModel); $("dlg").showModal(); fitDialog(); };
   $("dlgClose").onclick = () => $("dlg").close();
   $("clearAll").onclick = () => {
