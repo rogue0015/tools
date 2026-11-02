@@ -29,6 +29,16 @@ server, no build step, no internet connection needed.
   means it genuinely does not read — usually too large a logo or too little
   contrast.
 
+## Link check
+
+For `http(s)` addresses the page first checks that the link works, and only then
+generates the code. This is the one network request the app makes: your browser
+sends a `HEAD` request straight to the address you typed. Nothing goes to this
+site's host. A page cannot read another site's answer, so the check means "the
+address is well-formed and a server replied" (a 404 still passes). If it fails,
+no code is made and a **Generate anyway** button appears (useful offline or for
+intranet links). `mailto:`, `tel:` and plain text are not checked.
+
 ## Presets in the address bar
 
 Settings can be preset via the URL hash, handy for bookmarks or generating a

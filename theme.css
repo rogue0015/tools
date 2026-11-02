@@ -1,0 +1,193 @@
+/* Shared look for all small apps — matches rogue0015.github.io.
+   Fonts are stored locally in /fonts so pages work offline and make no outside requests.
+   Mobile-first: base rules are for phones; min-width queries add the larger-screen layout. */
+
+@font-face{ font-family:'Anton'; font-weight:400; font-display:swap; src:url(fonts/anton-400.woff2) format('woff2'); }
+@font-face{ font-family:'Space Grotesk'; font-weight:300 700; font-display:swap; src:url(fonts/spacegrotesk-var.woff2) format('woff2'); }
+@font-face{ font-family:'IBM Plex Mono'; font-weight:400; font-display:swap; src:url(fonts/plexmono-400.woff2) format('woff2'); }
+@font-face{ font-family:'IBM Plex Mono'; font-weight:500; font-display:swap; src:url(fonts/plexmono-500.woff2) format('woff2'); }
+@font-face{ font-family:'IBM Plex Mono'; font-weight:600; font-display:swap; src:url(fonts/plexmono-600.woff2) format('woff2'); }
+
+:root{
+  --void:#08060B;
+  --panel-glass:rgba(10,8,14,0.55);
+  --panel-solid:#0E0B13;
+  --sunburst:#FF6A1F;
+  --acid:#D4FF3F;
+  --magenta:#FF3D7F;
+  --sigblue:#4DE1FF;
+  --paper:#F5EFDF;
+  --paper-dim:rgba(245,239,223,0.62);
+  --line:rgba(245,239,223,0.16);
+  --line-strong:rgba(245,239,223,0.32);
+  --field:rgba(245,239,223,0.04);
+  --mono:'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  --sans:'Space Grotesk', system-ui, sans-serif;
+  --display:'Anton', Impact, sans-serif;
+  --gutter:16px;
+  --tap:44px;               /* minimum touch target */
+  --field-size:16px;        /* 16px stops iOS zooming into inputs */
+  color-scheme:dark;
+}
+
+*{ box-sizing:border-box; }
+html{ background:var(--void); -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+body{
+  margin:0; background:var(--void); color:var(--paper);
+  font-family:var(--sans); font-size:15px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;
+  overflow-x:clip;
+  /* respect notches / rounded corners */
+  padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-right);
+  /* soft colour glow, same palette as the portfolio */
+  background-image:
+    radial-gradient(circle at 85% -10%, rgba(77,225,255,0.10), transparent 40%),
+    radial-gradient(circle at 0% 100%, rgba(255,61,127,0.08), transparent 35%);
+  background-attachment:fixed;
+}
+::selection{ background:var(--acid); color:var(--void); }
+a{ color:inherit; }
+:focus-visible{ outline:2px solid var(--acid); outline-offset:3px; }
+code{ font-family:var(--mono); font-size:.9em; color:var(--acid); }
+
+/* film grain overlay */
+.grain{
+  position:fixed; inset:0; z-index:100; pointer-events:none; opacity:0.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- type ---------- */
+.display, h1{
+  font-family:var(--display); font-weight:400; text-transform:uppercase;
+  letter-spacing:0.01em; line-height:0.98; margin:0;
+}
+h1{ font-size:clamp(2.1rem, 10vw, 3.4rem); }
+h1 .accent{ color:var(--sunburst); }
+.mono{ font-family:var(--mono); }
+.sub{ color:var(--paper-dim); margin:12px 0 0; max-width:60ch; }
+
+/* small blue label with a rule, e.g. "— 01 / TOOLS" */
+.tag{
+  font-family:var(--mono); font-size:10.5px; letter-spacing:0.16em; text-transform:uppercase;
+  color:var(--sigblue); display:flex; align-items:center; gap:10px; margin:0 0 14px;
+}
+.tag::before{ content:""; width:32px; height:1px; background:var(--sigblue); opacity:.7; flex:0 0 auto; }
+
+/* top bar: live dot + name, back link (one row, even on small phones) */
+.topbar{
+  display:flex; justify-content:space-between; align-items:center; gap:12px;
+  font-family:var(--mono); font-size:10px; letter-spacing:0.08em; color:var(--paper-dim);
+  margin-bottom:28px; min-height:var(--tap);
+}
+.brandmark{ display:flex; align-items:center; gap:8px; text-decoration:none; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.brandmark .full{ display:none; }
+@media (min-width:360px){ .brandmark .full{ display:inline; } }
+@media (min-width:640px){ .topbar{ font-size:12px; letter-spacing:0.12em; margin-bottom:36px; } }
+.brandmark .dotlive{
+  width:7px; height:7px; border-radius:50%; background:var(--acid);
+  box-shadow:0 0 8px 2px rgba(212,255,63,0.7);
+  animation:blink 1.8s ease-in-out infinite;
+}
+@keyframes blink{ 0%,100%{opacity:1;} 50%{opacity:.25;} }
+.back{
+  display:inline-flex; align-items:center; min-height:var(--tap); padding:0 2px; flex:0 0 auto; white-space:nowrap;
+  text-decoration:none; color:var(--paper-dim); transition:color .2s;
+}
+.back:active{ color:var(--acid); }
+@media (hover:hover){ .back:hover{ color:var(--acid); text-decoration:underline; text-underline-offset:4px; } }
+
+/* ---------- panels with acid corner ticks ---------- */
+.card, .panel{
+  position:relative;
+  background:var(--panel-glass);
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  border:1px solid var(--line);
+  border-radius:0;
+}
+.card::before, .card::after, .panel::before, .panel::after{
+  content:""; position:absolute; width:14px; height:14px; pointer-events:none;
+  border:0 solid var(--acid);
+}
+.card::before, .panel::before{ top:-1px; left:-1px; border-top-width:2px; border-left-width:2px; }
+.card::after, .panel::after{ bottom:-1px; right:-1px; border-bottom-width:2px; border-right-width:2px; }
+
+/* section headings inside panels */
+.card h2, .panel legend{
+  font-family:var(--mono); font-size:11px; font-weight:500; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--sigblue);
+}
+
+/* ---------- form controls ---------- */
+label{ font-family:var(--mono); font-size:11.5px; letter-spacing:.04em; color:var(--paper-dim); }
+input[type=text], input[type=number], input[type=date], select, textarea{
+  width:100%; min-height:var(--tap); padding:10px 12px; border-radius:0;
+  border:1px solid var(--line-strong); background:var(--field); color:var(--paper);
+  font-family:var(--sans); font-size:var(--field-size);
+  transition:border-color .2s;
+}
+textarea{ min-height:96px; }
+input::placeholder, textarea::placeholder{ color:rgba(245,239,223,0.35); }
+@media (hover:hover){
+  input[type=text]:hover, input[type=number]:hover, input[type=date]:hover, select:hover, textarea:hover{ border-color:rgba(245,239,223,0.5); }
+}
+input[type=text]:focus, input[type=number]:focus, input[type=date]:focus, select:focus, textarea:focus{
+  outline:none; border-color:var(--acid);
+}
+select option{ background:var(--panel-solid); color:var(--paper); }
+input[type=checkbox], input[type=range]{ accent-color:var(--acid); }
+input[type=checkbox]{ width:20px; height:20px; margin:0; }
+input[type=range]{ height:var(--tap); margin:0; touch-action:pan-y; }
+input[type=file]{ font-family:var(--mono); font-size:12px; color:var(--paper-dim); max-width:100%; }
+input[type=file]::file-selector-button{
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.06em; text-transform:uppercase;
+  min-height:var(--tap); padding:8px 14px; margin-right:10px; cursor:pointer;
+  background:transparent; color:var(--paper); border:1px solid var(--line-strong); border-radius:0;
+  transition:border-color .2s, color .2s;
+}
+@media (hover:hover){ input[type=file]::file-selector-button:hover{ border-color:var(--acid); color:var(--acid); } }
+
+/* ---------- buttons ---------- */
+button.btn{
+  font-family:var(--mono); font-size:12px; letter-spacing:.08em; text-transform:uppercase;
+  min-height:var(--tap); padding:11px 16px; border-radius:0; cursor:pointer; touch-action:manipulation;
+  background:transparent; color:var(--paper); border:1.5px solid var(--line-strong);
+  transition:background .2s, color .2s, border-color .2s;
+}
+button.btn.primary{ border-color:var(--acid); color:var(--acid); background:transparent; font-weight:500; }
+button.btn:active{ border-color:var(--sunburst); color:var(--sunburst); }
+button.btn.primary:active{ background:var(--acid); color:var(--void); }
+@media (hover:hover){
+  button.btn:hover{ border-color:var(--sunburst); color:var(--sunburst); }
+  button.btn.primary:hover{ background:var(--acid); color:var(--void); border-color:var(--acid); }
+}
+button.btn:disabled, button.btn:disabled:hover{
+  opacity:.35; cursor:not-allowed; background:transparent; color:var(--paper); border-color:var(--line-strong);
+}
+
+/* segmented toggle */
+.seg{ display:flex; border:1px solid var(--line-strong); border-radius:0; overflow:hidden; }
+.seg button{
+  flex:1; min-height:var(--tap); padding:9px 6px; border:0; touch-action:manipulation; border-right:1px solid var(--line); border-radius:0;
+  background:transparent; color:var(--paper-dim); cursor:pointer;
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.08em; text-transform:uppercase;
+  transition:background .2s, color .2s;
+}
+.seg button:last-child{ border-right:0; }
+@media (hover:hover){ .seg button:hover{ color:var(--paper); } }
+.seg button[aria-pressed=true]{ background:var(--acid); color:var(--void); font-weight:600; }
+
+footer, .foot-note{
+  font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--paper-dim);
+}
+
+/* larger screens with a mouse: tighter controls */
+@media (min-width:768px) and (pointer:fine){
+  :root{ --tap:40px; --field-size:14px; }
+  input[type=checkbox]{ width:16px; height:16px; }
+  input[type=range]{ height:28px; }
+}
+
+@media (prefers-reduced-motion: reduce){
+  *, *::before, *::after{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+}

@@ -28,13 +28,12 @@
     if (state.mode === "one") {
       kv("SURNAME", val("surname")); kv("NAME", val("name")); kv("REG NUMBER", val("regNo"));
     } else {
-      kv("GROUP", val("groupName"));
-      let n = 0; // number only the rows that are filled in, so a blank row never leaves a gap
+      if (val("groupName")) m.push({ k: "center", text: val("groupName"), after: 6 }); // group name only, centred, no label
       state.members.forEach(x => {
         const nm = [x.s, x.n].map(t => t.trim().replace(/\s+/g, " ")).filter(Boolean).join(" ").toUpperCase();
         const reg = x.r.trim().toUpperCase();
         const line = [nm, reg && "(" + reg + ")"].filter(Boolean).join(" ");
-        if (line) kv("MEMBER " + ++n, line);
+        if (line) m.push({ k: "left", text: line, after: ROW_GAP }); // blank rows are skipped, so no gaps
       });
     }
     kv("PROGRAMME", val("programme")); kv("MODE OF ENTRY", val("entry")); kv("LECTURER", val("lecturer"));

@@ -316,8 +316,73 @@
 
   /* ---------------------------------------------------------------- main -- */
 
+  /* ------------------------------------------------------- link checking -- */
+
+  /* A page cannot read another site's response, so the check is: is the address
+     well-formed, and does a server answer at all? An answer of any kind (even a
+     404) passes; DNS failure, refusal and timeout do not. */
+  var linkCache = {};   // url text -> { ok: bool, why: string }
+  var linkSent = {};    // url text -> check in flight
+  var override = null;  // url text the user chose to generate anyway
+
+  var overrideBtn = document.createElement('button');
+  overrideBtn.type = 'button';
+  overrideBtn.className = 'btn';
+  overrideBtn.textContent = 'Generate anyway';
+  overrideBtn.hidden = true;
+  el.statusNote.parentNode.insertBefore(overrideBtn, el.statusNote.nextSibling);
+  overrideBtn.addEventListener('click', function () {
+    override = normalizeUrl(el.url.value).text;
+    update();
+  });
+
+  function checkLink(text) {
+    var u;
+    try { u = new URL(text); } catch (e) { u = null; }
+    if (!u || !/^https?:$/.test(u.protocol) || !(u.hostname === 'localhost' || /^[^.]+(\.[^.]+)+$/.test(u.hostname))) {
+      linkCache[text] = { ok: false, why: 'That is not a valid web address.' };
+      return;
+    }
+    linkSent[text] = true;
+    var ctrl = window.AbortController ? new AbortController() : null;
+    var stop = setTimeout(function () { if (ctrl) ctrl.abort(); }, 8000);
+    fetch(text, { method: 'HEAD', mode: 'no-cors', cache: 'no-store', redirect: 'follow', signal: ctrl ? ctrl.signal : undefined })
+      .then(function () { linkCache[text] = { ok: true }; },
+        function () { linkCache[text] = { ok: false, why: 'That link could not be reached. Check the spelling, or that the site is online.' }; })
+      .then(function () {
+        clearTimeout(stop);
+        delete linkSent[text];
+        if (normalizeUrl(el.url.value).text === text) update();
+      });
+  }
+
+  /* Returns true when generation may go ahead. */
+  function linkGate(norm) {
+    overrideBtn.hidden = true;
+    if (norm.kind !== 'url' || !/^https?:/i.test(norm.text)) return true; // mailto:, tel:, plain text, etc.
+    var r = linkCache[norm.text];
+    if (r && r.ok) return true;
+    if (override === norm.text) return true;
+    el.verdict.className = 'verdict';
+    el.verdictText.textContent = 'Nothing to check yet.';
+    setEnabled(false);
+    state.plan = null;
+    el.canvas.getContext('2d').clearRect(0, 0, el.canvas.width, el.canvas.height);
+    if (el.saveImg) el.saveImg.removeAttribute('src');
+    if (!r) {
+      note(el.statusNote, 'Checking that the link works…');
+      if (!linkSent[norm.text]) checkLink(norm.text);
+      if (!linkSent[norm.text] && linkCache[norm.text]) return linkGate(norm); // failed validation synchronously
+    } else {
+      note(el.statusNote, r.why + ' No code was generated.');
+      overrideBtn.hidden = false;
+    }
+    return false;
+  }
+
   function update() {
     var opt = readOptions();
+    if (!linkGate(normalizeUrl(opt.raw))) return;
     var plan;
     try {
       plan = buildPlan(opt);

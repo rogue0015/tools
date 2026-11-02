@@ -2,50 +2,54 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#08060B">
 <title>Brandon's Small Apps</title>
+<link rel="stylesheet" href="theme.css">
 <style>
-  :root {
-    --bg:#f6f7f9; --panel:#ffffff; --ink:#14161a; --muted:#646b76;
-    --line:#e3e6ea; --line-strong:#cdd2d9; --accent:#2f6df6;
-    --radius:12px; --shadow:0 1px 2px rgba(16,20,28,.06), 0 8px 24px rgba(16,20,28,.06);
-    color-scheme: light dark;
+  /* phones: content starts at the top, single column of full-width cards */
+  main{ width:100%; max-width:920px; margin:0 auto; padding:16px var(--gutter) calc(40px + env(safe-area-inset-bottom)); }
+  .sub{ margin-bottom:28px; }
+  .grid{ display:grid; gap:14px; grid-template-columns:1fr; }
+  a.card{
+    display:block; padding:20px 18px 22px; text-decoration:none; color:inherit;
+    transition:border-color .2s, transform .2s;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg:#0f1115; --panel:#171a20; --ink:#e9ecf1; --muted:#99a2b0;
-      --line:#262b33; --line-strong:#39404a; --accent:#4d82ff;
-      --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
-    }
+  a.card:active, a.card:focus-visible{ border-color:var(--acid); outline:none; }
+  a.card:active .name, a.card:focus-visible .name{ color:var(--acid); }
+  @media (hover:hover){
+    a.card:hover{ border-color:var(--acid); transform:translateY(-2px); }
+    a.card:hover .name{ color:var(--acid); }
   }
-  * { box-sizing:border-box; }
-  body {
-    margin:0; background:var(--bg); color:var(--ink);
-    font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    min-height:100vh; min-height:100dvh;
-    display:flex; flex-direction:column; justify-content:center;
+  /* larger screens: centred vertically, multi-column grid */
+  @media (min-width:640px){
+    body{ min-height:100vh; min-height:100dvh; display:flex; flex-direction:column; justify-content:center; }
+    main{ padding:40px 24px 56px; }
+    .sub{ margin-bottom:36px; }
+    .grid{ gap:18px; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); }
+    a.card{ padding:22px 22px 24px; }
   }
-  main { width:100%; max-width:880px; margin:0 auto; padding:48px 16px; }
-  h1 { margin:0 0 4px; font-size:28px; letter-spacing:-.01em; }
-  .sub { margin:0 0 32px; color:var(--muted); }
-  .grid { display:grid; gap:16px; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); }
-  a.card {
-    display:block; padding:20px; text-decoration:none; color:inherit;
-    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
-    box-shadow:var(--shadow); transition:border-color .15s, transform .15s;
-  }
-  a.card:hover, a.card:focus-visible { border-color:var(--accent); transform:translateY(-2px); outline:none; }
-  .icon { font-size:28px; line-height:1; margin-bottom:12px; }
-  .name { font-weight:600; font-size:18px; margin:0 0 4px; }
-  .desc { margin:0; color:var(--muted); font-size:14px; }
-  .empty { color:var(--muted); }
+  .idx{ display:flex; justify-content:space-between; font-family:var(--mono); font-size:11px; letter-spacing:.14em; color:var(--sunburst); margin-bottom:18px; }
+  .icon{ font-size:22px; line-height:1; color:var(--sigblue); }
+  .card .name{ font-family:var(--display); font-weight:400; text-transform:uppercase; letter-spacing:.01em; font-size:1.55rem; line-height:1.05; margin:0 0 10px; color:var(--paper); transition:color .2s; }
+  .desc{ margin:0; color:var(--paper-dim); font-size:14px; line-height:1.6; }
+  .go{ margin-top:18px; font-family:var(--mono); font-size:11.5px; letter-spacing:.08em; color:var(--acid); }
+  .empty{ color:var(--paper-dim); }
+  footer{ margin-top:32px; }
 </style>
 </head>
 <body>
+<div class="grain"></div>
 <main>
-  <h1>Brandon's Small Apps</h1>
+  <div class="topbar">
+    <span class="brandmark"><span class="dotlive"></span> <span class="full">BRANDON.T.BANDE //&nbsp;</span>ROGUE0015</span>
+    <a class="back" href="https://rogue0015.github.io/">PORTFOLIO →</a>
+  </div>
+  <div class="tag">00 / TOOLKIT</div>
+  <h1>Brandon's <span class="accent">Small</span> Apps</h1>
   <p class="sub">A collection of little tools. Pick one.</p>
   <div class="grid" id="grid"></div>
+  <footer>Runs in your browser · nothing is uploaded</footer>
 </main>
 
 <script>
@@ -59,16 +63,20 @@
 
   const grid = document.getElementById("grid");
   if (!APPS.length) grid.innerHTML = '<p class="empty">No apps yet.</p>';
-  for (const app of APPS) {
+  APPS.forEach((app, i) => {
     const a = document.createElement("a");
     a.className = "card";
     a.href = app.href;
-    const icon = document.createElement("div"); icon.className = "icon"; icon.textContent = app.icon;
+    const idx = document.createElement("div"); idx.className = "idx";
+    const num = document.createElement("span"); num.textContent = "APP " + String(i + 1).padStart(2, "0");
+    const icon = document.createElement("span"); icon.className = "icon"; icon.textContent = app.icon;
+    idx.append(num, icon);
     const name = document.createElement("h2"); name.className = "name"; name.textContent = app.name;
     const desc = document.createElement("p"); desc.className = "desc"; desc.textContent = app.desc;
-    a.append(icon, name, desc);
+    const go = document.createElement("div"); go.className = "go"; go.textContent = "→ OPEN";
+    a.append(idx, name, desc, go);
     grid.append(a);
-  }
+  });
 </script>
 </body>
 </html>
