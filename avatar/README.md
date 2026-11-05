@@ -14,8 +14,9 @@ python -m http.server 8080
 
 Then open http://localhost:8080/avatar/.
 
-Open it once with internet and wait for **Offline ready** (about 17 MB is saved the
-first time). From then on it opens and records with no connection.
+Open it once with internet, turn on the camera, and wait for **Offline ready**. The
+face tracker (about 17 MB) downloads only when you first use the camera. From then
+on it opens and records with no connection.
 
 To keep it like an app: on iPhone, Share → Add to Home Screen. On Android, browser menu →
 Install app. On iPhone this matters, because Safari can clear the saved files of sites
@@ -24,7 +25,7 @@ you haven't opened for a while.
 ## Using it
 
 - **Avatar**: start from a look (Host, Podcaster, Headwrap, Lecturer, Male, Female, Student, Grandpa, Grandma, Coach, Neon), set body type (male, female, neutral), shoulders, neck and age, then change face shape, skin tone, eyes, brows, nose, mouth, 16 hair styles, makeup, beauty mark, facial hair, glasses, headwear, earrings, clothes, background, framing and line style. Save your own looks, randomize, undo, and export or import a look as a `.json` file. Green and blue screen backgrounds are there for editing later.
-- **Prompter**: paste your script. Put cues in square brackets, like `[pause]`, and they show in amber. Set the speed in words per minute, the text size and position, and mirror the text if you use prompter glass. It starts scrolling when you start recording. It sits over the stage but is never part of the video.
+- **Prompter**: paste or upload a plain-text `.txt` script, then export it as `.txt` when you’re done. Put cues in square brackets, like `[pause]`, and they show in amber. Set the speed in words per minute, the text size and position, and mirror the text if you use prompter glass. It starts scrolling when you start recording. It sits over the stage but is never part of the video.
 - **Setup**: pick the camera and microphone and their clean-up filters. Tune each expression (blinks, gaze, brows, mouth, smile and more) with live meters, tune head turn, nod and tilt separately, and choose the tracker engine and confidence. For recording: 16:9, 9:16, 1:1, 4:3, 4:5 or a custom size, 480p to 4K, 24 to 60 fps, video and audio bitrate, file type and codec, and the countdown.
 - **Clips**: play, save, share or delete your takes.
 

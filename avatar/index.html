@@ -366,6 +366,57 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Easier to scan and operate, especially on touch screens. */
+:root { --r: 14px; }
+.bar { min-height: 58px; gap: 14px; }
+.brand-mark { border-radius: 8px; }
+.chip { border-radius: 999px; }
+.stage { border-radius: 16px; }
+.stage-chip { border-radius: 999px; }
+.pip { border-radius: 10px; }
+.prompter { border-radius: 12px; }
+.prompter-ctrl { border-radius: 12px; }
+.prompter-ctrl button { width: 40px; height: 40px; border-radius: 9px; }
+.transport { margin-top: 14px; }
+.tbtn, .btn, .opt { border-radius: 10px; min-height: 42px; transition: border-color .15s ease, background-color .15s ease, color .15s ease; }
+.tab { min-height: 48px; }
+.group { border-radius: 14px; padding: 16px; gap: 14px; }
+.group > summary.label { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; min-height: 24px; color: var(--fg); }
+.group > summary.label::-webkit-details-marker { display: none; }
+.group > summary.label::after { content: ""; width: 8px; height: 8px; flex: none; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg) translateY(-2px); transition: transform .15s ease; }
+.group[open] > summary.label::after { transform: rotate(225deg) translateY(-1px); }
+.sec { border-radius: 12px; overflow: clip; }
+.look-chip { border-radius: 999px; }
+.look-chip button { min-height: 40px; padding-inline: 14px; }
+.look-chip button + button { min-width: 40px; padding-inline: 10px; }
+.sw { width: 34px; height: 34px; }
+.sw-custom { width: 34px; height: 34px; border-radius: 50%; }
+.switch input { border-radius: 999px; }
+.clip { border-radius: 12px; }
+.clip-thumb { border-radius: 8px; }
+.empty, .banner, .toast { border-radius: 12px; }
+.meter { border-radius: 999px; }
+.meter i { transition-duration: 100ms; }
+
+@media (min-width: 900px) {
+  .desk { grid-template-columns: minmax(0, 1fr) 420px; }
+  .pane { gap: 16px; padding-top: 18px; }
+}
+@media (max-width: 899px) {
+  .tab { min-height: 54px; }
+  body.sheet-open .pane { border-radius: 18px 18px 0 0; }
+  body.sheet-open .tab[aria-selected="true"] { background: rgba(212,255,63,0.08); }
+  .pane { padding-inline: max(18px, env(safe-area-inset-left)) max(18px, env(safe-area-inset-right)); }
+}
+@media (max-width: 480px) {
+  .bar { min-height: 52px; }
+  .chips { gap: 4px; }
+  .chips .chip { letter-spacing: 0; }
+  .group { padding: 14px; }
+  .prompter-ctrl { gap: 1px; }
+  .prompter-ctrl button { width: 36px; height: 36px; }
+}
 </style>
 </head>
 <body>
@@ -390,7 +441,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i></span>Avatar Studio</div>
     <a class="back" href="../index.html">← ALL APPS</a>
     <div class="chips" aria-live="polite">
-      <span class="chip" id="trackerChip" data-state="busy">Loading tracker</span>
+      <span class="chip" id="trackerChip" data-state="warn">Tracker loads with camera</span>
       <span class="chip" id="offlineChip" data-state="">Checking offline</span>
     </div>
   </header>
@@ -450,6 +501,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
         <div class="group">
           <h2 class="label">Looks</h2>
           <div class="looks" id="looks"></div>
+          <label class="switch">Draw avatar outlines<input type="checkbox" id="outlineQuick"></label>
           <div class="row">
             <button type="button" class="btn small" id="randomBtn"><svg class="i"><use href="#i-shuffle"/></svg>Randomize</button>
             <button type="button" class="btn small" id="undoBtn" disabled><svg class="i"><use href="#i-undo"/></svg>Undo</button>
@@ -473,6 +525,11 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
         <div class="group">
           <div class="field-head"><label for="scriptInput">Script</label><output id="scriptStats"></output></div>
           <textarea id="scriptInput" rows="11" spellcheck="true"></textarea>
+          <div class="row">
+            <button type="button" class="btn small" id="exportScriptBtn">Export .txt</button>
+            <label class="btn small" for="scriptFile">Upload .txt</label>
+            <input type="file" id="scriptFile" accept=".txt,text/plain" hidden>
+          </div>
           <p class="hint">Leave a blank line between paragraphs. Put cues like [pause] or [smile] in square brackets.</p>
         </div>
         <div class="group">
@@ -521,21 +578,21 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
           <div class="field"><div class="field-head"><label for="smoothing">Smoothing</label><output id="smoothingOut"></output></div><input type="range" id="smoothing" min="0" max="1" step="0.05"></div>
           <p class="hint">If the avatar looks tilted while you face the camera, press Recenter.</p>
         </div>
-        <div class="group">
-          <h2 class="label">Expression tuning</h2>
+        <details class="group">
+          <summary class="label">Expression tuning</summary>
           <p class="hint">Turn the camera on and pull faces: each bar shows what the tracker reads. Raise a slider if the avatar barely reacts, lower it if it overreacts.</p>
           <div id="sensList" class="tune"></div>
           <label class="switch">Link both eyes when blinking<input type="checkbox" id="linkBlinks"></label>
           <button type="button" class="btn small" id="sensReset">Reset tuning</button>
-        </div>
-        <div class="group">
-          <h2 class="label">Head tuning</h2>
+        </details>
+        <details class="group">
+          <summary class="label">Head tuning</summary>
           <div class="field"><div class="field-head"><label for="yawGain">Turn left / right</label><output id="yawGainOut"></output></div><input type="range" id="yawGain" min="0" max="3" step="0.05"></div>
           <div class="field"><div class="field-head"><label for="pitchGain">Nod up / down</label><output id="pitchGainOut"></output></div><input type="range" id="pitchGain" min="0" max="3" step="0.05"></div>
           <div class="field"><div class="field-head"><label for="rollGain">Tilt</label><output id="rollGainOut"></output></div><input type="range" id="rollGain" min="0" max="3" step="0.05"></div>
-        </div>
-        <div class="group">
-          <h2 class="label">Tracker engine</h2>
+        </details>
+        <details class="group">
+          <summary class="label">Tracker engine</summary>
           <div class="field"><div class="field-head"><span id="delLabel">Runs on</span></div>
             <div class="opts" role="group" aria-labelledby="delLabel" id="delegateOpts">
               <button type="button" class="opt" data-delegate="auto">Auto</button>
@@ -552,7 +609,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
             </div>
           </div>
           <p class="hint">Lower confidence keeps tracking in dim light but may jitter. Tracking fewer frames saves battery on slow phones.</p>
-        </div>
+        </details>
         <div class="group">
           <h2 class="label">Recording</h2>
           <div class="field"><div class="field-head"><span id="fmtLabel">Format</span></div>

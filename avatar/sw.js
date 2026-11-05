@@ -4,7 +4,7 @@
 // web the first time and kept here, so later visits work offline.
 // Bump VERSION whenever you change the app files.
 
-const VERSION = 'v4';
+const VERSION = 'v7';
 const SHELL = `avatar-studio-shell-${VERSION}`;
 const RUNTIME = 'avatar-studio-runtime-v1';
 

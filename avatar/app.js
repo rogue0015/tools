@@ -241,6 +241,7 @@ function syncEditor(onlyKey) {
     if (!onlyKey || key === onlyKey) c.sync();
     c.wrap.hidden = c.field.when ? !c.field.when(look) : false;
   }
+  if (!onlyKey || onlyKey === 'outline') $('#outlineQuick').checked = !!look.outline;
 }
 
 function setLook(key, value) {
@@ -248,6 +249,8 @@ function setLook(key, value) {
   syncEditor(key);
   saveLook();
 }
+
+$('#outlineQuick').addEventListener('change', e => setLook('outline', e.target.checked));
 
 function applyLook(next, { remember = true } = {}) {
   if (remember) {
@@ -365,6 +368,26 @@ $('#scriptInput').addEventListener('input', e => {
   prompter.setScript(script);
   updateScriptStats();
   saveScript();
+});
+$('#exportScriptBtn').addEventListener('click', () => {
+  downloadBlob(new Blob([script], { type: 'text/plain;charset=utf-8' }), 'avatar-script.txt');
+  toast('Script exported as avatar-script.txt.');
+});
+$('#scriptFile').addEventListener('change', async e => {
+  const file = e.target.files?.[0];
+  e.target.value = '';
+  if (!file) return;
+  try {
+    script = await file.text();
+    $('#scriptInput').value = script;
+    prompter.setScript(script);
+    prompter.restart();
+    updateScriptStats();
+    saveScript();
+    toast(`Loaded ${file.name}.`);
+  } catch {
+    toast('Could not read that file. Choose a plain text .txt script.');
+  }
 });
 $('#wpm').addEventListener('input', e => setWpm(+e.target.value));
 $('#promptSize').addEventListener('input', e => { settings.promptSize = +e.target.value; saveSettings(); applyPrompterSettings(); });
@@ -517,6 +540,7 @@ async function startCamera() {
   try { await cam.play(); } catch { /* autoplay of a muted video is allowed; ignore */ }
   camOn = true;
   solver.recenter();
+  if (!landmarker) loadTracker();
   setupMeter();
   updateCamUI();
   fillDevices();
@@ -592,29 +616,43 @@ $('#recenterBtn').addEventListener('click', () => {
 // ---------------------------------------------------------------- tracker
 let landmarker = null;
 const solver = new FaceSolver();
+let trackerLoad = null;
 
 async function loadTracker() {
+  if (landmarker) return landmarker;
+  if (trackerLoad) return trackerLoad;
   setChip($('#trackerChip'), 'busy', 'Loading tracker');
-  try {
-    const { landmarker: lm, delegate } = await createLandmarker({ delegate: settings.delegate, conf: settings.conf });
-    landmarker = lm;
-    setChip($('#trackerChip'), 'ok', `Tracker ready · ${delegate}`);
-  } catch (err) {
-    console.error(err);
-    setChip($('#trackerChip'), 'bad', 'Tracker unavailable');
-    toast(navigator.onLine
-      ? 'The face tracker didn’t load. Check your connection and reload the page.'
-      : 'You’re offline and the face tracker hasn’t been downloaded yet. Open the app once with internet, then it works offline.');
-  }
+  trackerLoad = (async () => {
+    try {
+      const { landmarker: lm, delegate } = await createLandmarker({ delegate: settings.delegate, conf: settings.conf });
+      landmarker = lm;
+      setChip($('#trackerChip'), 'ok', `Tracker ready · ${delegate}`);
+      await refreshOfflineInfo();
+      return lm;
+    } catch (err) {
+      console.error(err);
+      setChip($('#trackerChip'), 'bad', 'Tracker unavailable');
+      toast(navigator.onLine
+        ? 'The face tracker didn’t load. Check your connection and try turning the camera on again.'
+        : 'The face tracker isn’t saved on this device yet. Connect to the internet and turn the camera on once to download it.');
+      return null;
+    } finally {
+      trackerLoad = null;
+    }
+  })();
+  return trackerLoad;
 }
 
 let reloading = null;
 async function reloadTracker() {
-  if (reloading) return;
-  const old = landmarker;
-  landmarker = null;
-  try { old?.close(); } catch { /* already closed */ }
-  reloading = loadTracker();
+  if (reloading) return reloading;
+  reloading = (async () => {
+    if (trackerLoad) await trackerLoad;
+    try { landmarker?.close(); } catch { /* already closed */ }
+    landmarker = null;
+    if (camOn) await loadTracker();
+    else setChip($('#trackerChip'), 'warn', 'Tracker loads with camera');
+  })();
   await reloading;
   reloading = null;
 }
@@ -632,21 +670,33 @@ function liteLook() {
   return liteCache;
 }
 let lastT = performance.now(), lastVideoTime = -1, lastSeen = -1e9, trackMix = 0, faceState = '';
+let frameRequest = 0, lastPaint = 0, lastUiUpdate = 0, lastMicRead = 0;
+
+function scheduleFrame() {
+  if (!frameRequest && !document.hidden) frameRequest = requestAnimationFrame(frame);
+}
 
 function frame(t) {
-  requestAnimationFrame(frame);
+  frameRequest = 0;
+  if (document.hidden) return;
+  scheduleFrame();
   const dt = Math.min(0.1, (t - lastT) / 1000);
   lastT = t;
-  readMic();
+  if (t - lastMicRead >= 1000 / 30) {
+    readMic();
+    lastMicRead = t;
+  }
 
-  trackTick++;
-  if (landmarker && camOn && cam.readyState >= 2 && cam.currentTime !== lastVideoTime && trackTick % settings.trackEvery === 0) {
+  if (landmarker && camOn && cam.readyState >= 2 && cam.currentTime !== lastVideoTime) {
     lastVideoTime = cam.currentTime;
-    try {
-      const res = landmarker.detectForVideo(cam, t);
-      const cfg = settings.lite ? { ...settings, smoothing: Math.min(settings.smoothing, 0.25) } : settings;
-      if (solver.update(res, cfg, (cam.videoWidth || 4) / (cam.videoHeight || 3))) lastSeen = t;
-    } catch (err) { console.warn(err); }
+    trackTick++;
+    if ((trackTick - 1) % settings.trackEvery === 0) {
+      try {
+        const res = landmarker.detectForVideo(cam, t);
+        const cfg = settings.lite ? { ...settings, smoothing: Math.min(settings.smoothing, 0.25) } : settings;
+        if (solver.update(res, cfg, (cam.videoWidth || 4) / (cam.videoHeight || 3))) lastSeen = t;
+      } catch (err) { console.warn(err); }
+    }
   }
   const tracking = camOn && t - lastSeen < 600;
   const nextState = !camOn ? '' : tracking ? 'ok' : 'warn';
@@ -660,12 +710,26 @@ function frame(t) {
   const live = solver.state;
   for (const k in face) face[k] = idle[k] + (live[k] - idle[k]) * trackMix;
 
-  drawAvatar(ctx, canvas.width, canvas.height, settings.lite ? liteLook() : look, face, t);
+  const paintFps = recorder ? recFps() : 30;
+  if (!lastPaint || t - lastPaint >= 1000 / paintFps) {
+    drawAvatar(ctx, canvas.width, canvas.height, settings.lite ? liteLook() : look, face, t);
+    lastPaint = t;
+  }
   prompter.tick(dt);
-  $('#meter').style.width = (micLevel * 100).toFixed(1) + '%';
-  if (recorder) updateTimecode();
-  updateSensMeters();
+  if (t - lastUiUpdate >= 100) {
+    $('#meter').style.width = (micLevel * 100).toFixed(1) + '%';
+    if (recorder) updateTimecode();
+    updateSensMeters();
+    lastUiUpdate = t;
+  }
 }
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    lastT = performance.now();
+    scheduleFrame();
+  }
+});
 
 // ---------------------------------------------------------------- recording
 let recorder = null;
@@ -804,10 +868,10 @@ async function finishTake(take, r) {
   for (const t of take.vStream.getVideoTracks()) t.stop();
   const type = (r.mimeType || 'video/webm').split(';')[0];
   const blob = new Blob(take.chunks, { type });
-  const clips = await store.listClips().catch(() => []);
+  const clipCount = await store.countClips().catch(() => 0);
   const clip = {
     id: take.id,
-    name: `Take ${clips.length + 1}`,
+    name: `Take ${clipCount + 1}`,
     created: take.meta.started,
     duration: take.duration || 0,
     mime: type,
@@ -829,7 +893,8 @@ async function finishTake(take, r) {
       label: 'Download', run: () => downloadBlob(blob, fileName(clip)),
     });
   }
-  renderClips();
+  if (!$('#pane-clips').hidden) renderClips();
+  else refreshClipCount();
 }
 
 $('#recBtn').addEventListener('click', toggleRecord);
@@ -876,6 +941,13 @@ function downloadBlob(blob, name) {
   setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
 }
 const mb = bytes => (bytes / 1048576).toFixed(bytes > 104857600 ? 0 : 1) + ' MB';
+
+async function refreshClipCount() {
+  try {
+    const count = await store.countClips();
+    $('#clipCount').textContent = count || '';
+  } catch { /* renderClips shows storage errors when opened */ }
+}
 
 async function renderClips() {
   let clips = [], pending = [];
@@ -960,9 +1032,9 @@ async function recoverTake(p) {
     const rows = await store.getChunks(p.rec);
     const type = (p.mime || 'video/webm').split(';')[0];
     const blob = new Blob(rows.map(r => r.data), { type });
-    const clips = await store.listClips();
+    const clipCount = await store.countClips();
     await store.saveClip({
-      id: p.rec, name: `Take ${clips.length + 1} (recovered)`, created: p.started || Date.now(),
+      id: p.rec, name: `Take ${clipCount + 1} (recovered)`, created: p.started || Date.now(),
       duration: rows.length * 1000, mime: type, size: blob.size, width: p.width || 0, height: p.height || 0, blob, thumb: null,
     });
     await store.deleteChunks(p.rec);
@@ -1014,8 +1086,13 @@ let offlineReady = false;
 async function refreshOfflineInfo() {
   offlineReady = await trackerCached().catch(() => false);
   $('#offTracker').textContent = offlineReady ? 'Saved on this device' : (landmarker ? 'Not saved yet' : 'Not downloaded yet');
+  if (navigator.serviceWorker?.controller) {
+    setChip($('#offlineChip'), offlineReady ? 'ok' : 'warn', offlineReady ? 'Offline ready' : 'Tracker not saved');
+    if (offlineReady) navigator.storage?.persist?.().catch(() => {});
+  }
   showStorage();
 }
+navigator.serviceWorker?.addEventListener('controllerchange', refreshOfflineInfo);
 
 // ---------------------------------------------------------------- keyboard
 document.addEventListener('keydown', e => {
@@ -1038,26 +1115,19 @@ async function init() {
   prompter.setScript(script);
   applyPrompterSettings();
   updateMimeInfo();
-  requestAnimationFrame(frame);
-  renderClips();
+  scheduleFrame();
+  refreshClipCount();
 
   const controlled = await setupOffline();
-  await loadTracker();
   if (controlled) {
     await refreshOfflineInfo();
-    if (offlineReady) {
-      setChip($('#offlineChip'), 'ok', 'Offline ready');
-      navigator.storage?.persist?.().catch(() => {});
-    } else {
-      setChip($('#offlineChip'), 'warn', 'Not offline yet');
-    }
   } else {
     setChip($('#offlineChip'), 'warn', 'Online only');
     $('#offTracker').textContent = 'This browser can’t keep files offline';
   }
 }
 
-window.addEventListener('online', () => { if (!landmarker) loadTracker(); });
+window.addEventListener('online', () => { if (camOn && !landmarker) loadTracker(); });
 init();
 
 // for quick checks from the browser console

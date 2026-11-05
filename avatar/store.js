@@ -89,6 +89,11 @@ export async function listClips() {
   return rows.sort((a, b) => b.created - a.created);
 }
 
+export async function countClips() {
+  const s = await store('clips');
+  return req(s.count());
+}
+
 export async function deleteClip(id) {
   const s = await store('clips', 'readwrite');
   s.delete(id);
