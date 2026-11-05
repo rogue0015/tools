@@ -12,11 +12,18 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const FORMATS = { landscape: [16, 9], portrait: [9, 16], square: [1, 1], classic: [4, 3], tall: [4, 5] };
 const even = n => Math.max(2, Math.round(n / 2) * 2);
 function outputSize() {
-  if (settings.format === 'custom') return [even(clamp(settings.customW, 240, 3840)), even(clamp(settings.customH, 240, 3840))];
+  if (settings.format === 'custom') {
+    let w = clamp(settings.customW, 240, 3840), h = clamp(settings.customH, 240, 3840);
+    if (settings.lite && Math.min(w, h) > 480) { const k = 480 / Math.min(w, h); w *= k; h *= k; }
+    return [even(w), even(h)];
+  }
   const [a, b] = FORMATS[settings.format] || FORMATS.landscape;
-  const short = settings.size;
+  const short = settings.lite ? Math.min(480, settings.size) : settings.size;
   return a >= b ? [even(short * a / b), even(short)] : [even(short), even(short * b / a)];
 }
+// what actually runs, after Lite mode limits
+const recFps = () => (settings.lite ? Math.min(30, settings.fps) : settings.fps);
+const recBitrate = () => (settings.lite ? Math.min(2.5, settings.vbitrate) : settings.vbitrate);
 const SENS = [
   ['blink', 'Blinks', ['blinkL', 'blinkR']], ['wide', 'Wide eyes', ['wideL', 'wideR']], ['squint', 'Squint', ['squintL', 'squintR']],
   ['gaze', 'Eye gaze', ['lookX', 'lookY']], ['brows', 'Brows', ['browInner', 'browOuterL', 'browOuterR', 'browDownL', 'browDownR']],
@@ -39,6 +46,8 @@ const DEFAULT_SETTINGS = {
   yawGain: 1, pitchGain: 1, rollGain: 1, linkBlinks: false, delegate: 'auto', conf: 0.5, trackEvery: 1,
   size: 720, customW: 1280, customH: 720, fps: 30, vbitrate: 4, abitrate: 128, mime: 'auto',
   echoCancel: true, noiseSuppress: true, autoGain: true,
+  // Lite mode: lighter work so phones keep up (on by default on touch screens)
+  lite: matchMedia('(pointer: coarse)').matches,
   // phones start in portrait (Reels, Shorts, Status); bigger screens in 16:9
   format: matchMedia('(max-width: 700px)').matches ? 'portrait' : 'landscape',
   quality: 'standard', countdown: 3, recordMic: true, camId: '', micId: '',
@@ -104,8 +113,24 @@ function showTab(name) {
   if (name === 'clips') renderClips();
   if (name === 'setup') refreshOfflineInfo();
 }
+// Phones: the tabs sit in a bottom bar and open their panel as a sheet over the
+// stage. Tapping the open tab again (or the handle) closes it.
+const phone = matchMedia('(max-width: 899px)');
+function setSheet(open) {
+  document.body.classList.toggle('sheet-open', open);
+  $('#sheetClose').setAttribute('aria-expanded', open);
+}
+$('#sheetClose').addEventListener('click', () => setSheet(false));
 for (const t of $$('.tab')) {
-  t.addEventListener('click', () => showTab(t.id.slice(4)));
+  t.addEventListener('click', () => {
+    const name = t.id.slice(4);
+    if (phone.matches) {
+      const same = t.getAttribute('aria-selected') === 'true';
+      if (same && document.body.classList.contains('sheet-open')) return setSheet(false);
+      setSheet(true);
+    }
+    showTab(name);
+  });
   t.addEventListener('keydown', e => {
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
     const tabs = $$('.tab');
@@ -118,7 +143,7 @@ for (const t of $$('.tab')) {
 // ---------------------------------------------------------------- format
 function applyFormat() {
   const [w, h] = outputSize();
-  $('#sizeInfo').textContent = `${w} × ${h}`;
+  $('#sizeInfo').textContent = `${w} × ${h}` + (settings.lite ? ' · Lite' : '');
   $('#customSize').hidden = settings.format !== 'custom';
   $('#sizeOpts').hidden = settings.format === 'custom';
   canvas.width = w;
@@ -394,6 +419,7 @@ bindRange('conf', 'conf', pct);
 $('#conf').addEventListener('change', reloadTracker);
 bindOpts('#trackEveryOpts', 'trackEvery', 'every', Number);
 bindToggle('linkBlinks', 'linkBlinks');
+bindToggle('lite', 'lite', () => { applyFormat(); if (camOn && !recorder) startCamera(); });
 for (const id of ['echoCancel', 'noiseSuppress', 'autoGain']) bindToggle(id, id, () => { if (camOn && !recorder) startCamera(); });
 for (const id of ['customW', 'customH']) {
   const input = $('#' + id);
@@ -462,7 +488,10 @@ function cameraError(err) {
 async function startCamera() {
   if (!navigator.mediaDevices?.getUserMedia) { toast(cameraError()); return false; }
   stopCamera();
-  const video = { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: Math.max(30, settings.fps) } };
+  // the tracker only needs a small picture; Lite mode halves it again
+  const video = settings.lite
+    ? { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 30 } }
+    : { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: Math.max(30, settings.fps) } };
   if (settings.camId) video.deviceId = { exact: settings.camId };
   else video.facingMode = 'user';
   const audio = { echoCancellation: settings.echoCancel, noiseSuppression: settings.noiseSuppress, autoGainControl: settings.autoGain };
@@ -593,6 +622,15 @@ async function reloadTracker() {
 // ---------------------------------------------------------------- render loop
 const face = { ...NEUTRAL };
 let trackTick = 0;
+// Lite mode draws a flat avatar: no soft shading, plain background
+let liteSrc = null, liteCache = null;
+function liteLook() {
+  if (liteSrc !== look) {
+    liteSrc = look;
+    liteCache = { ...look, shading: false, bg: ['studio', 'gradient', 'dots'].includes(look.bg) ? 'solid' : look.bg };
+  }
+  return liteCache;
+}
 let lastT = performance.now(), lastVideoTime = -1, lastSeen = -1e9, trackMix = 0, faceState = '';
 
 function frame(t) {
@@ -606,7 +644,8 @@ function frame(t) {
     lastVideoTime = cam.currentTime;
     try {
       const res = landmarker.detectForVideo(cam, t);
-      if (solver.update(res, settings, (cam.videoWidth || 4) / (cam.videoHeight || 3))) lastSeen = t;
+      const cfg = settings.lite ? { ...settings, smoothing: Math.min(settings.smoothing, 0.25) } : settings;
+      if (solver.update(res, cfg, (cam.videoWidth || 4) / (cam.videoHeight || 3))) lastSeen = t;
     } catch (err) { console.warn(err); }
   }
   const tracking = camOn && t - lastSeen < 600;
@@ -621,7 +660,7 @@ function frame(t) {
   const live = solver.state;
   for (const k in face) face[k] = idle[k] + (live[k] - idle[k]) * trackMix;
 
-  drawAvatar(ctx, canvas.width, canvas.height, look, face, t);
+  drawAvatar(ctx, canvas.width, canvas.height, settings.lite ? liteLook() : look, face, t);
   prompter.tick(dt);
   $('#meter').style.width = (micLevel * 100).toFixed(1) + '%';
   if (recorder) updateTimecode();
@@ -650,9 +689,9 @@ function updateMimeInfo() {
 }
 
 function timecode(ms) {
-  const totalFrames = Math.floor((ms / 1000) * settings.fps);
-  const ff = totalFrames % settings.fps;
-  const s = Math.floor(totalFrames / settings.fps);
+  const totalFrames = Math.floor((ms / 1000) * recFps());
+  const ff = totalFrames % recFps();
+  const s = Math.floor(totalFrames / recFps());
   const p = n => String(n).padStart(2, '0');
   return `${p(Math.floor(s / 3600))}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}:${p(ff)}`;
 }
@@ -700,7 +739,7 @@ async function makeThumb() {
 }
 
 function beginRecording() {
-  const vStream = canvas.captureStream(settings.fps);
+  const vStream = canvas.captureStream(recFps());
   const tracks = [...vStream.getVideoTracks()];
   const audioTrack = settings.recordMic ? stream?.getAudioTracks()[0] : null;
   if (audioTrack) tracks.push(audioTrack);
@@ -708,7 +747,7 @@ function beginRecording() {
   try {
     recorder = new MediaRecorder(new MediaStream(tracks), {
       ...(mime ? { mimeType: mime } : {}),
-      videoBitsPerSecond: Math.round(settings.vbitrate * 1_000_000),
+      videoBitsPerSecond: Math.round(recBitrate() * 1_000_000),
       audioBitsPerSecond: settings.abitrate * 1000,
     });
   } catch (err) {
